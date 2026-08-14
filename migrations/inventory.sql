@@ -1,6 +1,6 @@
 -- Migration for Inventory & Stock Management
 
-CREATE TABLE inventory_categories (
+CREATE TABLE IF NOT EXISTS inventory_categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE inventory_categories (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE inventory_items (
+CREATE TABLE IF NOT EXISTS inventory_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     category_id UUID REFERENCES inventory_categories(id) ON DELETE SET NULL,
@@ -28,7 +28,7 @@ CREATE TABLE inventory_items (
     UNIQUE(business_id, sku)
 );
 
-CREATE TABLE inventory_transactions (
+CREATE TABLE IF NOT EXISTS inventory_transactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     item_id UUID NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
@@ -42,11 +42,11 @@ CREATE TABLE inventory_transactions (
 );
 
 -- Performance Indexes
-CREATE INDEX idx_inventory_items_business_id ON inventory_items(business_id);
-CREATE INDEX idx_inventory_items_sku ON inventory_items(sku);
-CREATE INDEX idx_inventory_transactions_item_id ON inventory_transactions(item_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_items_business_id ON inventory_items(business_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_items_sku ON inventory_items(sku);
+CREATE INDEX IF NOT EXISTS idx_inventory_transactions_item_id ON inventory_transactions(item_id);
 
--- updated_at trigger for inventory_items
+DROP TRIGGER IF EXISTS set_timestamp_inventory_items ON inventory_items;
 CREATE TRIGGER set_timestamp_inventory_items
     BEFORE UPDATE ON inventory_items
     FOR EACH ROW

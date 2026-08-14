@@ -17,6 +17,7 @@ const settingsController = require('../controllers/settingsController');
 const forecastController = require('../controllers/forecastController');
 const chatController = require('../controllers/chatController');
 const inventoryController = require('../controllers/inventoryController');
+const salesController = require('../controllers/salesController');
 
 const router = express.Router();
 
@@ -116,6 +117,13 @@ router.post('/inventory/:id/adjust', authorize('admin','manager'), [
   body('type').isIn(['restock', 'sale', 'adjustment', 'damage', 'return']).withMessage('Valid adjustment type required'),
   body('quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
 ], inventoryController.adjustStock);
+
+// ── Sales & POS ──────────────────────────────────────────────────────────────
+router.get('/sales', salesController.listSales);
+router.get('/sales/pos', salesController.showPOS);
+router.get('/api/sales/items', salesController.searchItemsAPI);
+router.post('/api/sales/checkout', salesController.checkoutAPI);
+router.get('/api/sales/receipt/:id', salesController.showReceiptAPI);
 
 // ── PART 2: Billing ──────────────────────────────────────────────────────────
 router.get('/billing', billingController.listBilling);
