@@ -1,0 +1,177 @@
+<%- include('../../partials/head') %>
+<link rel="stylesheet" href="/css/dashboard.css">
+<style>
+  .quote-doc { background: #fff; padding: 3rem; border-radius: 12px; border: 1px solid #e9ecef; box-shadow: 0 4px 20px rgba(0,0,0,0.03); max-width: 800px; margin: 0 auto; }
+  .quote-header { display: flex; justify-content: space-between; margin-bottom: 3rem; border-bottom: 2px solid #f8f9fa; padding-bottom: 1.5rem; }
+  .quote-title { font-size: 2rem; font-weight: 800; color: #343a40; margin: 0 0 8px; }
+  .info-block { margin-bottom: 1rem; }
+  .info-label { font-size: 11px; text-transform: uppercase; color: #adb5bd; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .info-val { font-size: 14px; color: #495057; font-weight: 500; }
+  .quote-table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+  .quote-table th { text-align: left; padding: 12px; background: #f8f9fa; color: #495057; font-size: 12px; text-transform: uppercase; }
+  .quote-table td { padding: 16px 12px; border-bottom: 1px solid #e9ecef; font-size: 14px; color: #343a40; }
+  .quote-table tr:last-child td { border-bottom: none; }
+  .quote-totals { width: 300px; margin-left: auto; }
+  .quote-totals-row { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 14px; color: #495057; }
+  .quote-totals-row.grand { font-size: 1.25rem; font-weight: 800; color: #6f42c1; background: #f8f9fa; border-radius: 8px; margin-top: 8px; padding: 16px 12px; }
+  .action-bar { max-width: 800px; margin: 0 auto 1.5rem; display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 1rem 1.5rem; border-radius: 8px; border: 1px solid #e9ecef; }
+  .btn-action { padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; border: 1px solid transparent; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+  .btn-copy { background: #e8f0fe; color: #1967d2; }
+  .btn-copy:hover { background: #d2e3fc; }
+  .btn-outline { border-color: #ced4da; background: #fff; color: #495057; }
+  .btn-outline:hover { background: #f8f9fa; }
+  .btn-success { background: #00b87f; color: #fff; }
+  .btn-success:hover { background: #00996b; }
+</style>
+</head>
+<body class="app-body">
+<%- include('../../partials/sidebar') %>
+<main class="main-content">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div><h1 class="page-title">Quote Details</h1></div>
+    </div>
+    <a href="/quotations" class="btn-close" style="color:#6c757d; text-decoration:none; font-weight:600;"><i class="fas fa-arrow-left"></i> Back to Quotes</a>
+  </div>
+
+  <div style="padding:2rem;">
+    
+    <!-- Action Bar -->
+    <div class="action-bar">
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span style="font-weight:600; font-size:14px;">Status:</span>
+        <% if(quotation.status === 'draft') { %> <span class="badge" style="background:#e9ecef;color:#495057">Draft</span> <% } %>
+        <% if(quotation.status === 'sent') { %> <span class="badge" style="background:#e8f0fe;color:#1967d2">Sent</span> <% } %>
+        <% if(quotation.status === 'accepted') { %> <span class="badge" style="background:#e0f7ef;color:#00b87f">Accepted</span> <% } %>
+        <% if(quotation.status === 'rejected') { %> <span class="badge" style="background:#fce8e9;color:#dc3545">Rejected</span> <% } %>
+        <% if(quotation.status === 'converted') { %> <span class="badge" style="background:#d4edda;color:#155724"><i class="fas fa-check-double"></i> Converted to Sale</span> <% } %>
+      </div>
+      
+      <div style="display:flex; gap:10px;">
+        <% if(quotation.status === 'draft' || quotation.status === 'sent') { %>
+          <a href="/quotations/<%= quotation.id %>/edit" class="btn-action btn-outline"><i class="fas fa-pen"></i> Edit</a>
+          <button class="btn-action btn-copy" onclick="copyLink()"><i class="fas fa-link"></i> Copy Public Link</button>
+          <% if(quotation.status === 'draft') { %>
+            <button class="btn-action btn-outline" onclick="markAs('sent')"><i class="fas fa-paper-plane"></i> Mark Sent</button>
+          <% } %>
+        <% } %>
+        
+        <% if(quotation.status === 'accepted') { %>
+          <button class="btn-action btn-success" onclick="convertToSale()"><i class="fas fa-file-invoice-dollar"></i> Convert to Sale</button>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Quote Document -->
+    <div class="quote-doc">
+      <div class="quote-header">
+        <div>
+          <h2 class="quote-title">ESTIMATE</h2>
+          <div class="info-val" style="font-size:16px; color:#6f42c1; font-weight:700;">#<%= quotation.quote_number %></div>
+        </div>
+        <div style="text-align:right;">
+          <div class="info-block" style="margin-bottom:0;">
+            <div class="info-val" style="font-size:18px; font-weight:800; color:#343a40;"><%= quotation.business_name %></div>
+            <div class="info-val"><%= quotation.business_email %></div>
+            <div class="info-val"><%= quotation.business_phone || '' %></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; margin-bottom:3rem;">
+        <div class="info-block">
+          <div class="info-label">Prepared For</div>
+          <div class="info-val" style="font-weight:700;"><%= quotation.customer_name_linked || quotation.customer_name || 'Walk-in' %></div>
+          <div class="info-val"><%= quotation.customer_email || '' %></div>
+        </div>
+        <div class="info-block" style="text-align:right;">
+          <div class="info-label">Date Issued</div>
+          <div class="info-val"><%= typeof formatDate === 'function' ? formatDate(quotation.created_at) : new Date(quotation.created_at).toLocaleDateString() %></div>
+          <% if(quotation.valid_until) { %>
+            <div class="info-label" style="margin-top:10px;">Valid Until</div>
+            <div class="info-val"><%= new Date(quotation.valid_until).toLocaleDateString() %></div>
+          <% } %>
+        </div>
+      </div>
+
+      <table class="quote-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th style="text-align:center;">Qty</th>
+            <th style="text-align:right;">Unit Price</th>
+            <th style="text-align:right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% items.forEach(i => { %>
+            <tr>
+              <td><span style="font-weight:600;"><%= i.description %></span></td>
+              <td style="text-align:center;"><%= i.quantity %></td>
+              <td style="text-align:right;"><%= typeof formatCurrency === 'function' ? formatCurrency(i.unit_price, user.currency) : i.unit_price %></td>
+              <td style="text-align:right; font-weight:600;"><%= typeof formatCurrency === 'function' ? formatCurrency(i.subtotal, user.currency) : i.subtotal %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+
+      <div class="quote-totals">
+        <div class="quote-totals-row">
+          <span>Subtotal</span>
+          <span><%= typeof formatCurrency === 'function' ? formatCurrency(quotation.total_amount, user.currency) : quotation.total_amount %></span>
+        </div>
+        <div class="quote-totals-row grand">
+          <span>Total Estimate</span>
+          <span><%= typeof formatCurrency === 'function' ? formatCurrency(quotation.total_amount, user.currency) : quotation.total_amount %></span>
+        </div>
+      </div>
+
+      <% if(quotation.notes) { %>
+        <div style="margin-top:4rem; padding-top:2rem; border-top:1px solid #e9ecef;">
+          <div class="info-label">Notes & Terms</div>
+          <div class="info-val" style="white-space:pre-wrap; font-size:13px; color:#6c757d;"><%= quotation.notes %></div>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</main>
+
+<script>
+  function copyLink() {
+    navigator.clipboard.writeText('<%= publicUrl %>');
+    alert('Public link copied to clipboard!\n\n' + '<%= publicUrl %>');
+  }
+
+  async function markAs(status) {
+    try {
+      const res = await fetch('/api/quotations/<%= quotation.id %>/status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status})
+      });
+      if(res.ok) window.location.reload();
+      else alert('Failed to update status');
+    } catch(e) {
+      alert('Network error');
+    }
+  }
+
+  async function convertToSale() {
+    if(!confirm('This will create a sale record, update inventory, and log income. Proceed?')) return;
+    try {
+      const res = await fetch('/api/quotations/<%= quotation.id %>/convert', { method: 'POST' });
+      const data = await res.json();
+      if(data.success) {
+        alert('Successfully converted to sale!');
+        window.location.reload();
+      } else {
+        alert(data.error || 'Failed to convert');
+      }
+    } catch(e) {
+      alert('Network error');
+    }
+  }
+</script>
+</body>
+</html>

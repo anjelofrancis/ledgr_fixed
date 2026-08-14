@@ -23,6 +23,9 @@
       <a href="/expenses" class="nav-item <%= currentPath.startsWith('/expenses') ? 'active' : '' %>">
         <i class="fas fa-arrow-trend-down"></i> Expenses
       </a>
+      <a href="/quotations" class="nav-item <%= currentPath.startsWith('/quotations') ? 'active' : '' %>">
+        <i class="fas fa-file-invoice"></i> Quotations
+      </a>
       <% if (user && user.has_pos) { %>
       <a href="/inventory" class="nav-item <%= currentPath.startsWith('/inventory') ? 'active' : '' %>">
         <i class="fas fa-boxes-stacked"></i> Inventory

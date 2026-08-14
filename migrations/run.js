@@ -18,6 +18,10 @@ async function runMigrations() {
     const salesSQL = fs.readFileSync(path.join(__dirname, 'sales.sql'), 'utf8');
     await client.query(salesSQL);
     console.log('✅ Sales & POS schema migration complete');
+
+    const quotationsSQL = fs.readFileSync(path.join(__dirname, 'quotations.sql'), 'utf8');
+    await client.query(quotationsSQL);
+    console.log('✅ Quotations schema migration complete');
   } catch (err) {
     console.error('❌ Migration failed:', err.message);
     process.exit(1);

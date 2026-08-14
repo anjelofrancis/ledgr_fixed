@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { margin: 0; padding: 2rem; background: #f1f3f5; font-family: 'Inter', sans-serif; color: #343a40; }
+    .container { max-width: 800px; margin: 0 auto; }
+    
+    /* Document styling similar to show.ejs but centered and standalone */
+    .quote-doc { background: #fff; padding: 4rem; border-radius: 16px; border: 1px solid #dee2e6; box-shadow: 0 10px 40px rgba(0,0,0,0.05); }
+    .quote-header { display: flex; justify-content: space-between; margin-bottom: 4rem; }
+    .quote-title { font-size: 2.5rem; font-weight: 800; color: #212529; margin: 0 0 10px; letter-spacing: -1px; }
+    
+    .info-block { margin-bottom: 1.5rem; }
+    .info-label { font-size: 11px; text-transform: uppercase; color: #868e96; font-weight: 800; letter-spacing: 1px; margin-bottom: 6px; }
+    .info-val { font-size: 15px; color: #495057; font-weight: 500; line-height: 1.5; }
+    
+    .quote-table { width: 100%; border-collapse: collapse; margin-bottom: 3rem; }
+    .quote-table th { text-align: left; padding: 16px; background: #f8f9fa; color: #495057; font-size: 12px; text-transform: uppercase; border-radius: 8px 8px 0 0; }
+    .quote-table td { padding: 20px 16px; border-bottom: 1px solid #e9ecef; font-size: 15px; color: #212529; }
+    .quote-table tr:last-child td { border-bottom: 2px solid #e9ecef; }
+    
+    .quote-totals { width: 320px; margin-left: auto; }
+    .quote-totals-row { display: flex; justify-content: space-between; padding: 10px 16px; font-size: 15px; color: #495057; }
+    .quote-totals-row.grand { font-size: 1.5rem; font-weight: 800; color: #fff; background: #212529; border-radius: 12px; margin-top: 12px; padding: 20px 16px; box-shadow: 0 4px 15px rgba(33,37,41,0.2); }
+    
+    /* Interactive Bar */
+    .interaction-bar { background: #fff; padding: 1.5rem; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.05); margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid #dee2e6; }
+    .status-badge { display: inline-block; padding: 8px 16px; border-radius: 100px; font-weight: 700; font-size: 14px; }
+    
+    .btn { padding: 14px 28px; border-radius: 8px; font-weight: 700; font-size: 15px; cursor: pointer; border: none; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-accept { background: #00b87f; color: #fff; box-shadow: 0 4px 15px rgba(0,184,127,0.2); }
+    .btn-accept:hover { background: #00996b; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,184,127,0.3); }
+    .btn-reject { background: #fff; color: #dc3545; border: 1px solid #ffcdd2; }
+    .btn-reject:hover { background: #fff5f5; }
+    
+    .watermark { text-align: center; margin-top: 2rem; font-size: 13px; color: #adb5bd; font-weight: 500; }
+    .watermark a { color: #6f42c1; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  
+  <div class="interaction-bar">
+    <div>
+      <span style="color:#6c757d; font-size:14px; font-weight:600; margin-right:10px;">Status:</span>
+      <% if(quotation.status === 'draft' || quotation.status === 'sent') { %> 
+        <span class="status-badge" style="background:#e8f0fe;color:#1967d2">Awaiting Approval</span> 
+      <% } %>
+      <% if(quotation.status === 'accepted') { %> 
+        <span class="status-badge" style="background:#e0f7ef;color:#00b87f"><i class="fas fa-check-circle"></i> Accepted</span> 
+      <% } %>
+      <% if(quotation.status === 'rejected') { %> 
+        <span class="status-badge" style="background:#fce8e9;color:#dc3545"><i class="fas fa-times-circle"></i> Declined</span> 
+      <% } %>
+      <% if(quotation.status === 'converted') { %> 
+        <span class="status-badge" style="background:#e0f7ef;color:#00b87f"><i class="fas fa-check-double"></i> Accepted & Invoiced</span> 
+      <% } %>
+    </div>
+    
+    <% if(quotation.status === 'draft' || quotation.status === 'sent') { %>
+      <div style="display:flex; gap:12px;">
+        <button class="btn btn-reject" onclick="respond('rejected')">Decline</button>
+        <button class="btn btn-accept" onclick="respond('accepted')"><i class="fas fa-check"></i> Accept Quote</button>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="quote-doc">
+    <div class="quote-header">
+      <div>
+        <h2 class="quote-title">ESTIMATE</h2>
+        <div style="font-size:18px; color:#868e96; font-weight:700; font-family:monospace;">#<%= quotation.quote_number %></div>
+      </div>
+      <div style="text-align:right;">
+        <div class="info-val" style="font-size:22px; font-weight:800; color:#212529;"><%= quotation.business_name %></div>
+        <div class="info-val" style="margin-top:4px;"><%= quotation.business_email %></div>
+        <div class="info-val"><%= quotation.business_phone || '' %></div>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; margin-bottom:4rem;">
+      <div class="info-block">
+        <div class="info-label">Prepared For</div>
+        <div class="info-val" style="font-weight:700; font-size:18px; color:#212529;"><%= quotation.customer_name_linked || quotation.customer_name || 'Customer' %></div>
+        <div class="info-val"><%= quotation.customer_email || '' %></div>
+      </div>
+      <div class="info-block" style="text-align:right;">
+        <div class="info-label">Date Issued</div>
+        <div class="info-val" style="font-weight:600;"><%= new Date(quotation.created_at).toLocaleDateString(undefined, {year:'numeric', month:'long', day:'numeric'}) %></div>
+        <% if(quotation.valid_until) { %>
+          <div class="info-label" style="margin-top:16px;">Valid Until</div>
+          <div class="info-val" style="font-weight:600;"><%= new Date(quotation.valid_until).toLocaleDateString(undefined, {year:'numeric', month:'long', day:'numeric'}) %></div>
+        <% } %>
+      </div>
+    </div>
+
+    <table class="quote-table">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th style="text-align:center;">Qty</th>
+          <th style="text-align:right;">Unit Price</th>
+          <th style="text-align:right;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% items.forEach(i => { %>
+          <tr>
+            <td><span style="font-weight:700;"><%= i.description %></span></td>
+            <td style="text-align:center; font-weight:600; color:#868e96;"><%= i.quantity %></td>
+            <td style="text-align:right; font-weight:500; color:#868e96;"><%= Number(i.unit_price).toLocaleString() %></td>
+            <td style="text-align:right; font-weight:700;"><%= Number(i.subtotal).toLocaleString() %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+
+    <div class="quote-totals">
+      <div class="quote-totals-row">
+        <span>Subtotal</span>
+        <span style="font-weight:600;"><%= Number(quotation.total_amount).toLocaleString() %> <%= quotation.currency %></span>
+      </div>
+      <div class="quote-totals-row grand">
+        <span style="opacity:0.9;">Total</span>
+        <span><%= Number(quotation.total_amount).toLocaleString() %> <%= quotation.currency %></span>
+      </div>
+    </div>
+
+    <% if(quotation.notes) { %>
+      <div style="margin-top:5rem; padding-top:2.5rem; border-top:1px solid #e9ecef;">
+        <div class="info-label">Notes & Terms</div>
+        <div class="info-val" style="white-space:pre-wrap; font-size:14px; color:#6c757d; line-height:1.6;"><%= quotation.notes %></div>
+      </div>
+    <% } %>
+  </div>
+  
+  <div class="watermark">
+    Powered by <a href="/">LEDGR</a> — Secure Business Management
+  </div>
+</div>
+
+<script>
+  async function respond(action) {
+    const msg = action === 'accepted' ? 'Are you sure you want to accept this quote?' : 'Are you sure you want to decline this quote?';
+    if(!confirm(msg)) return;
+    
+    try {
+      const res = await fetch('/q/<%= quotation.public_token %>/action', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action})
+      });
+      if(res.ok) {
+        window.location.reload();
+      } else {
+        alert('Failed to update quote. It may have already been processed.');
+      }
+    } catch(e) {
+      alert('Network error');
+    }
+  }
+</script>
+</body>
+</html>

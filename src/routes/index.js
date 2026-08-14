@@ -18,6 +18,7 @@ const forecastController = require('../controllers/forecastController');
 const chatController = require('../controllers/chatController');
 const inventoryController = require('../controllers/inventoryController');
 const salesController = require('../controllers/salesController');
+const quotationsController = require('../controllers/quotationsController');
 
 const router = express.Router();
 
@@ -124,6 +125,19 @@ router.get('/sales/pos', salesController.showPOS);
 router.get('/api/sales/items', salesController.searchItemsAPI);
 router.post('/api/sales/checkout', salesController.checkoutAPI);
 router.get('/api/sales/receipt/:id', salesController.showReceiptAPI);
+
+// ── Quotations & Estimates ───────────────────────────────────────────────────
+router.get('/quotations', quotationsController.listQuotations);
+router.get('/quotations/new', authorize('admin','manager'), quotationsController.showForm);
+router.get('/quotations/:id/edit', authorize('admin','manager'), quotationsController.showForm);
+router.get('/quotations/:id', quotationsController.viewQuotation);
+router.post('/api/quotations', authorize('admin','manager'), quotationsController.saveQuotationAPI);
+router.post('/api/quotations/:id/status', authorize('admin','manager'), quotationsController.updateStatusAPI);
+router.post('/api/quotations/:id/convert', authorize('admin','manager'), quotationsController.convertToSaleAPI);
+
+// Public links
+router.get('/q/:token', optionalAuth, quotationsController.publicQuoteView);
+router.post('/q/:token/action', quotationsController.publicQuoteAction);
 
 // ── PART 2: Billing ──────────────────────────────────────────────────────────
 router.get('/billing', billingController.listBilling);
