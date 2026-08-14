@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS businesses (
   timezone VARCHAR(50) DEFAULT 'Africa/Nairobi',
   savings_rate DECIMAL(5,2) DEFAULT 10.00,
   vat_rate DECIMAL(5,2) DEFAULT 16.00,
+  has_pos BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

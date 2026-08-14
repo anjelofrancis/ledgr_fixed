@@ -51,7 +51,7 @@ const register = async (req, res) => {
     });
   }
 
-  const { businessName, businessType, businessEmail, firstName, lastName, email, password, phone } = req.body;
+  const { businessName, businessType, businessEmail, firstName, lastName, email, password, phone, hasPos } = req.body;
   const client = await getClient();
 
   try {
@@ -70,8 +70,8 @@ const register = async (req, res) => {
 
     // Create business
     const businessResult = await client.query(
-      `INSERT INTO businesses (id, name, type, email, phone) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [uuidv4(), businessName, businessType, businessEmail || email, phone || null]
+      `INSERT INTO businesses (id, name, type, email, phone, has_pos) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [uuidv4(), businessName, businessType, businessEmail || email, phone || null, hasPos === 'true']
     );
     const businessId = businessResult.rows[0].id;
 

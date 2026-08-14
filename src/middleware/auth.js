@@ -20,7 +20,7 @@ const authenticate = async (req, res, next) => {
     const result = await query(
       `SELECT u.id, u.business_id, u.first_name, u.last_name, u.email, u.role, u.is_active,
               b.name AS business_name, b.type AS business_type, b.currency, b.logo_url,
-              b.savings_rate, b.vat_rate
+              b.savings_rate, b.vat_rate, b.has_pos
        FROM users u
        JOIN businesses b ON b.id = u.business_id
        WHERE u.id = $1 AND u.is_active = true`,

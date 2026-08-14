@@ -53,6 +53,14 @@
           <label for="businessEmail">Business email <span class="optional">(optional, defaults to yours)</span></label>
           <input type="email" id="businessEmail" name="businessEmail" placeholder="info@yourbusiness.co.ke">
         </div>
+        
+        <div class="form-group" style="margin-top:1rem;">
+          <label class="checkbox-container" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+            <input type="checkbox" id="hasPos" name="hasPos" value="true" style="width:auto; margin:0;" <%= (typeof formData !== 'undefined' && formData.hasPos) ? 'checked' : '' %>>
+            <span style="font-weight:600; font-size:14px; color:#343a40;">I need a Point-of-Sale (POS) & Inventory System</span>
+          </label>
+          <p style="font-size:12px; color:#6c757d; margin-top:6px; margin-left:24px;">Enable this if you manage physical stock and need a register to ring up customers. You can change this later in settings.</p>
+        </div>
 
         <div class="form-section-label">Your account</div>
         <div class="form-row">

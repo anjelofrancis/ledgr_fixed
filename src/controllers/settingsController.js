@@ -18,13 +18,13 @@ const showSettings = async (req, res) => {
 };
 
 const updateBusiness = async (req, res) => {
-  const { name, type, kraPin, phone, address, currency, savingsRate, vatRate } = req.body;
+  const { name, type, kraPin, phone, address, currency, savingsRate, vatRate, hasPos } = req.body;
   await query(
     `UPDATE businesses SET name=$1, type=$2, kra_pin=$3, phone=$4, address=$5,
-     currency=$6, savings_rate=$7, vat_rate=$8 WHERE id=$9`,
+     currency=$6, savings_rate=$7, vat_rate=$8, has_pos=$9 WHERE id=$10`,
     [name, type, kraPin || null, phone || null, address || null,
      currency || 'KES', parseFloat(savingsRate) || 10,
-     parseFloat(vatRate) || 16, req.user.business_id]
+     parseFloat(vatRate) || 16, hasPos === 'true', req.user.business_id]
   );
   res.redirect('/settings?success=business');
 };
