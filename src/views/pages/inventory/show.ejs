@@ -1,0 +1,130 @@
+<%- include('../../partials/head') %>
+<link rel="stylesheet" href="/css/dashboard.css">
+<link rel="stylesheet" href="/css/auth.css">
+</head>
+<body class="app-body">
+<%- include('../../partials/sidebar') %>
+<main class="main-content">
+
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div><h1 class="page-title"><%= item.name %></h1></div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <a href="/inventory" style="font-size:13px;color:#888;margin-right:1rem;">← Back</a>
+      <% if(user && (user.role === 'admin' || user.role === 'manager')){ %>
+      <a href="/inventory/<%= item.id %>/edit" class="btn-add"><i class="fas fa-pen"></i> Edit</a>
+      <% } %>
+    </div>
+  </div>
+
+  <% if(typeof updated !== 'undefined' && updated){ %><div class="alert alert-success" style="margin: 0 2rem">Product updated successfully</div><% } %>
+  <% if(typeof adjusted !== 'undefined' && adjusted){ %><div class="alert alert-success" style="margin: 0 2rem">Stock adjusted successfully</div><% } %>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;padding:2rem">
+    
+    <!-- Item Details -->
+    <div class="dash-card" style="padding:1.5rem">
+      <h2 style="font-size:14px;font-weight:600;margin-bottom:1rem;color:#888;text-transform:uppercase;letter-spacing:0.05em">Product Details</h2>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <% 
+        const margin = item.cost_price > 0 ? ((item.sell_price - item.cost_price)/item.cost_price * 100).toFixed(1) + '%' : '—';
+        [
+          ['SKU', item.sku || '—'],
+          ['Category', item.category_name || '—'],
+          ['Supplier', item.supplier || '—'],
+          ['Location', item.location || '—'],
+          ['Cost Price', typeof formatCurrency === 'function' ? formatCurrency(item.cost_price, item.currency) : item.cost_price],
+          ['Sell Price', typeof formatCurrency === 'function' ? formatCurrency(item.sell_price, item.currency) : item.sell_price],
+          ['Profit Margin', margin],
+          ['Currency', item.currency],
+          ['Created', typeof formatDate === 'function' ? formatDate(item.created_at) : item.created_at]
+        ].forEach(([label, val]) => { %>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px solid #f0f0ec;padding-bottom:10px">
+          <span style="font-size:12px;color:#888"><%= label %></span>
+          <span style="font-size:13px;font-weight:500"><%- val %></span>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+
+    <!-- Stock Level -->
+    <div class="dash-card" style="padding:1.5rem">
+      <h2 style="font-size:14px;font-weight:600;margin-bottom:1rem;color:#888;text-transform:uppercase;letter-spacing:0.05em">Stock Level</h2>
+      
+      <%
+        let statusColor, statusBg, statusText;
+        if (item.quantity === 0) { statusBg='#fce8e9'; statusColor='#dc3545'; statusText='Out of Stock'; }
+        else if (item.quantity <= item.reorder_level) { statusBg='#fef3dc'; statusColor='#b87a00'; statusText='Low Stock'; }
+        else { statusBg='#e0f7ef'; statusColor='#00b87f'; statusText='In Stock'; }
+      %>
+      
+      <div style="text-align:center;margin-bottom:2rem">
+        <div style="font-size:48px;font-weight:700;color:<%= statusColor %>"><%= item.quantity %></div>
+        <div style="font-size:13px;color:#888;margin-bottom:8px">Reorder Level: <%= item.reorder_level %></div>
+        <span style="background:<%= statusBg %>;color:<%= statusColor %>;padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600"><%= statusText %></span>
+      </div>
+
+      <div style="border-top:1px solid #f0f0ec;padding-top:1.5rem">
+        <h3 style="font-size:13px;font-weight:600;margin-bottom:1rem">Adjust Stock</h3>
+        <form action="/inventory/<%= item.id %>/adjust" method="POST" class="auth-form">
+          <div class="form-row">
+            <div class="form-group">
+              <select name="type" required>
+                <option value="">Select type...</option>
+                <option value="restock">Restock (+)</option>
+                <option value="sale">Sale (-)</option>
+                <option value="adjustment">Adjustment (+/-)</option>
+                <option value="damage">Damage (-)</option>
+                <option value="return">Return (+)</option>
+              </select>
+            </div>
+            <div class="form-group"><input type="number" name="quantity" min="1" placeholder="Qty" required></div>
+          </div>
+          <div class="form-group">
+            <input type="text" name="reference" placeholder="Receipt/note ref (optional)">
+          </div>
+          <button type="submit" class="btn-submit" style="width:100%">Record Adjustment</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:0 2rem 2rem">
+    <div class="dash-card">
+      <div class="card-header"><h2>Stock Movement History</h2></div>
+      <% if(!transactions || transactions.length === 0){ %>
+        <div class="empty-state"><i class="fas fa-history"></i><p>No transactions found for this item.</p></div>
+      <% } else { %>
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Type</th><th>Qty Change</th><th>Balance After</th><th>Recorded By</th><th>Reference</th></tr></thead>
+          <tbody>
+            <% transactions.forEach(t => { 
+                let badgeColor;
+                switch(t.type) {
+                  case 'restock': badgeColor = 'background:#e0f7ef;color:#00b87f'; break;
+                  case 'sale': badgeColor = 'background:#e8f0fe;color:#1967d2'; break;
+                  case 'adjustment': badgeColor = 'background:#fef3dc;color:#b87a00'; break;
+                  case 'damage': badgeColor = 'background:#fce8e9;color:#dc3545'; break;
+                  case 'return': badgeColor = 'background:#EEEDFE;color:#6f42c1'; break;
+                  default: badgeColor = 'background:#f0f0ec;color:#555';
+                }
+            %>
+            <tr>
+              <td><%= typeof formatDate === 'function' ? formatDate(t.created_at) : t.created_at %></td>
+              <td><span style="padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600;text-transform:capitalize;<%= badgeColor %>"><%= t.type %></span></td>
+              <td style="font-weight:600;color:<%= t.quantity_change > 0 ? '#00b87f' : (t.quantity_change < 0 ? '#dc3545' : 'inherit') %>"><%= t.quantity_change > 0 ? '+' : '' %><%= t.quantity_change %></td>
+              <td><%= t.quantity_after %></td>
+              <td><%= t.recorded_by_name || 'System' %></td>
+              <td><span style="color:#888;font-size:12px"><%= t.reference || '—' %></span></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </div>
+</main>
+<script src="/js/dashboard.js"></script>
+</body></html>

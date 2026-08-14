@@ -16,6 +16,7 @@ const statementsController=require('../controllers/statementsController');
 const settingsController = require('../controllers/settingsController');
 const forecastController = require('../controllers/forecastController');
 const chatController = require('../controllers/chatController');
+const inventoryController = require('../controllers/inventoryController');
 
 const router = express.Router();
 
@@ -91,6 +92,30 @@ router.post('/expenses', [
   body('description').trim().notEmpty().withMessage('Description required'),
 ], expensesController.createExpense);
 router.post('/expenses/:id/delete', authorize('admin','manager'), expensesController.deleteExpense);
+
+// ── Inventory ────────────────────────────────────────────────────────────────
+router.get('/inventory', inventoryController.listItems);
+router.get('/inventory/new', authorize('admin','manager'), inventoryController.showNewForm);
+router.post('/inventory', authorize('admin','manager'), [
+  body('name').trim().notEmpty().withMessage('Product name required'),
+  body('costPrice').isFloat({ min: 0 }).withMessage('Valid cost price required'),
+  body('sellPrice').isFloat({ min: 0 }).withMessage('Valid sell price required'),
+  body('quantity').isInt({ min: 0 }).withMessage('Valid quantity required'),
+  body('reorderLevel').isInt({ min: 0 }).withMessage('Valid reorder level required'),
+], inventoryController.createItem);
+router.get('/inventory/:id', inventoryController.showItem);
+router.get('/inventory/:id/edit', authorize('admin','manager'), inventoryController.showEditForm);
+router.post('/inventory/:id/update', authorize('admin','manager'), [
+  body('name').trim().notEmpty().withMessage('Product name required'),
+  body('costPrice').isFloat({ min: 0 }).withMessage('Valid cost price required'),
+  body('sellPrice').isFloat({ min: 0 }).withMessage('Valid sell price required'),
+  body('reorderLevel').isInt({ min: 0 }).withMessage('Valid reorder level required'),
+], inventoryController.updateItem);
+router.post('/inventory/:id/delete', authorize('admin'), inventoryController.deleteItem);
+router.post('/inventory/:id/adjust', authorize('admin','manager'), [
+  body('type').isIn(['restock', 'sale', 'adjustment', 'damage', 'return']).withMessage('Valid adjustment type required'),
+  body('quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
+], inventoryController.adjustStock);
 
 // ── PART 2: Billing ──────────────────────────────────────────────────────────
 router.get('/billing', billingController.listBilling);

@@ -1,0 +1,72 @@
+<%- include('../../partials/head') %>
+<link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body class="app-body">
+<%- include('../../partials/sidebar') %>
+<main class="main-content">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div><h1 class="page-title"><%= typeof title !== 'undefined' ? title : 'Inventory' %></h1></div>
+    </div>
+    <a href="/inventory/new" class="btn-add"><i class="fas fa-plus"></i> Add Product</a>
+  </div>
+
+
+  <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="stat-card" style="background:#fff"><div class="stat-icon" style="background:#e8f0fe;color:#1967d2"><i class="fas fa-boxes-stacked"></i></div><div class="stat-body"><span class="stat-label">Total Products</span><span class="stat-val"><%= summary && summary.total_items ? summary.total_items : 0 %></span></div></div>
+    <div class="stat-card" style="background:#fff"><div class="stat-icon" style="background:#e0f7ef;color:#00b87f"><i class="fas fa-coins"></i></div><div class="stat-body"><span class="stat-label">Stock Value</span><span class="stat-val"><%= typeof formatCurrency === 'function' && summary ? formatCurrency(summary.total_stock_value, user.currency) : (summary ? summary.total_stock_value : 0) %></span></div></div>
+    <div class="stat-card" style="background:#fff"><div class="stat-icon" style="background:#fef3dc;color:#b87a00"><i class="fas fa-triangle-exclamation"></i></div><div class="stat-body"><span class="stat-label">Low Stock</span><span class="stat-val"><%= summary && summary.low_stock_count ? summary.low_stock_count : 0 %></span></div></div>
+    <div class="stat-card" style="background:#fff"><div class="stat-icon" style="background:#fce8e9;color:#dc3545"><i class="fas fa-circle-xmark"></i></div><div class="stat-body"><span class="stat-label">Out of Stock</span><span class="stat-val"><%= summary && summary.out_of_stock_count ? summary.out_of_stock_count : 0 %></span></div></div>
+  </div>
+
+  <div style="padding:0 2rem 2rem">
+    <div class="dash-card">
+      <div class="card-header"><h2>Product Inventory</h2>
+        <form method="GET" action="/inventory" style="display:flex;gap:6px;margin:0">
+          <input type="text" name="search" placeholder="Search by name or SKU..." value="<%= typeof filters !== 'undefined' && filters.search ? filters.search : '' %>" onchange="this.form.submit()" style="font-size:12px;padding:4px 8px;border:1px solid #ddd;border-radius:6px">
+          <select name="category" onchange="this.form.submit()" style="font-size:12px;padding:4px 8px;border:1px solid #ddd;border-radius:6px">
+            <option value="">All Categories</option>
+            <% if(typeof categories !== 'undefined'){ categories.forEach(c => { %><option value="<%= c.id %>" <%= typeof filters !== 'undefined' && filters.category == c.id ? 'selected' : '' %>><%= c.name %></option><% }) } %>
+          </select>
+        </form>
+      </div>
+      <% if(!items || items.length === 0){ %>
+        <div class="empty-state"><i class="fas fa-boxes"></i><p>No products found.</p><a href="/inventory/new" class="btn-add-sm">Add Product →</a></div>
+      <% }else{ %>
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>SKU</th><th>Category</th><th>Qty</th><th>Cost Price</th><th>Sell Price</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+        <% items.forEach(item => { %>
+        <tr>
+          <td><a href="/inventory/<%= item.id %>" style="font-weight:600;color:inherit;text-decoration:none;"><%= item.name %></a></td>
+          <td style="font-family:monospace;color:#888;"><%= item.sku || '—' %></td>
+          <td><span class="badge badge-cash"><%= item.category_name || '—' %></span></td>
+          <td><%= item.quantity %></td>
+          <td><%= typeof formatCurrency === 'function' ? formatCurrency(item.cost_price, item.currency) : item.cost_price %></td>
+          <td><%= typeof formatCurrency === 'function' ? formatCurrency(item.sell_price, item.currency) : item.sell_price %></td>
+          <td>
+            <% if(item.quantity === 0){ %>
+              <span style="background:#fce8e9;color:#dc3545;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600">Out of Stock</span>
+            <% } else if(item.quantity <= item.reorder_level){ %>
+              <span style="background:#fef3dc;color:#b87a00;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600">Low Stock</span>
+            <% } else { %>
+              <span style="background:#e0f7ef;color:#00b87f;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600">In Stock</span>
+            <% } %>
+          </td>
+          <td style="display:flex;gap:8px;align-items:center;">
+            <a href="/inventory/<%= item.id %>/edit" style="color:#888;font-size:12px"><i class="fas fa-pen"></i></a>
+            <% if(user && (user.role === 'admin' || user.role === 'manager')){ %>
+            <form action="/inventory/<%= item.id %>/delete" method="POST" onsubmit="return confirm('Delete this product?')"><button type="submit" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:12px"><i class="fas fa-trash"></i></button></form>
+            <% } %>
+          </td>
+        </tr>
+        <% }) %>
+        </tbody>
+      </table>
+      <% } %>
+    </div>
+  </div>
+</main>
+<script src="/js/dashboard.js"></script>
+</body></html>
