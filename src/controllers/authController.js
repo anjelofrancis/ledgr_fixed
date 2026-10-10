@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { query, getClient } = require('../../config/database');
 const { validationResult } = require('express-validator');
+const { logAudit } = require('../utils/audit');
 
 // Helper: create signed JWT
 const signToken = (userId) =>
@@ -109,6 +110,12 @@ const register = async (req, res) => {
       [uuidv4(), businessId, firstName, lastName, email, hash]
     );
 
+    await logAudit(req, {
+      action: 'business.register', entityType: 'business', entityId: businessId,
+      newValues: { businessName, businessType, email, hasPos: hasPos === 'true' },
+      businessId, userId: userResult.rows[0].id, client,
+    });
+
     await client.query('COMMIT');
 
     const token = signToken(userResult.rows[0].id);
@@ -142,13 +149,14 @@ const login = async (req, res) => {
 
   try {
     const result = await query(
-      `SELECT u.id, u.password_hash, u.is_active, u.first_name, u.role, b.name AS business_name
+      `SELECT u.id, u.business_id, u.password_hash, u.is_active, u.first_name, u.role, b.name AS business_name
        FROM users u JOIN businesses b ON b.id = u.business_id
        WHERE u.email = $1`,
       [email]
     );
 
     if (!result.rows.length) {
+      await logAudit(req, { action: 'auth.login_failed', newValues: { email, reason: 'unknown_email' }, businessId: null, userId: null });
       return res.render('pages/auth/login', {
         title: 'Sign In — LEDGR',
         error: 'Invalid email or password',
@@ -157,7 +165,9 @@ const login = async (req, res) => {
     }
 
     const user = result.rows[0];
+    const who = { businessId: user.business_id, userId: user.id, entityType: 'user', entityId: user.id };
     if (!user.is_active) {
+      await logAudit(req, { action: 'auth.login_failed', newValues: { reason: 'inactive' }, ...who });
       return res.render('pages/auth/login', {
         title: 'Sign In — LEDGR',
         error: 'Your account has been deactivated. Contact your administrator.',
@@ -167,6 +177,7 @@ const login = async (req, res) => {
 
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
+      await logAudit(req, { action: 'auth.login_failed', newValues: { reason: 'wrong_password' }, ...who });
       return res.render('pages/auth/login', {
         title: 'Sign In — LEDGR',
         error: 'Invalid email or password',
@@ -176,6 +187,7 @@ const login = async (req, res) => {
 
     // Update last login
     await query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
+    await logAudit(req, { action: 'auth.login', ...who });
 
     const token = signToken(user.id);
     setTokenCookie(res, token);
