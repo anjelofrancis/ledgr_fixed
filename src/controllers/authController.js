@@ -110,6 +110,9 @@ const register = async (req, res) => {
       [uuidv4(), businessId, firstName, lastName, email, hash]
     );
 
+    // Ledger accounts used by automatic postings
+    await client.query('SELECT seed_chart_of_accounts($1)', [businessId]);
+
     // Every new business starts on a 14-day Pro trial (see landing page pricing)
     await client.query(
       `INSERT INTO subscriptions (business_id, plan_code, status, trial_ends_at)
