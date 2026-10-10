@@ -14,6 +14,8 @@ const createTransporter = () => nodemailer.createTransport({
   },
 });
 
+const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 const emailTemplates = {
   billingConfirmation: ({ businessName, billName, amount, mpesaRef, date }) => ({
     subject: `✅ Payment confirmed — ${billName}`,
@@ -73,6 +75,18 @@ const emailTemplates = {
         <p>Amount: <strong>KES ${Number(amount).toLocaleString()}</strong></p>
         <p>LEDGR will process this automatically. No action needed unless you want to cancel.</p>
         <p style="color:#999;font-size:12px;">Sent by LEDGR for ${businessName}</p>
+      </div>`,
+  }),
+
+  billingFailed: ({ businessName, billName, amount, dueDate, attempts, lastError }) => ({
+    subject: `⚠️ Automatic payment failed — ${billName}`,
+    html: `
+      <div style="font-family: Inter, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px;">
+        <h2>We couldn't pay ${escapeHtml(billName)}</h2>
+        <p>LEDGR tried ${attempts} times to pay <strong>KES ${Number(amount).toLocaleString()}</strong>, due on ${new Date(dueDate).toLocaleDateString('en-KE')}, and has stopped trying.</p>
+        ${lastError ? `<p>Last error from M-Pesa: <em>${escapeHtml(lastError)}</em></p>` : ''}
+        <p>Check the payee number on the schedule, then use <strong>Pay now</strong> on the Billing page.</p>
+        <p style="color:#999;font-size:12px;">Sent by LEDGR for ${escapeHtml(businessName)}</p>
       </div>`,
   }),
 };
@@ -145,8 +159,13 @@ const notifyBillingReminder = async ({ email, businessName, billName, amount, du
   if (email) await sendEmail({ to: email, ...template });
 };
 
+const notifyBillingFailed = async ({ email, businessName, billName, amount, dueDate, attempts, lastError }) => {
+  const template = emailTemplates.billingFailed({ businessName, billName, amount, dueDate, attempts, lastError });
+  if (email) await sendEmail({ to: email, ...template });
+};
+
 module.exports = {
   sendEmail, sendSMS,
-  notifyBillingConfirmed, notifyPayroll, notifyBillingReminder,
+  notifyBillingConfirmed, notifyPayroll, notifyBillingReminder, notifyBillingFailed,
   emailTemplates,
 };

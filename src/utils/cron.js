@@ -3,7 +3,7 @@
 // Or integrate with a process manager (PM2)
 
 const { query } = require('../../config/database');
-const { notifyBillingReminder } = require('./notifications');
+const { notifyBillingReminder, notifyBillingFailed } = require('./notifications');
 const { getEntitlements } = require('./entitlements');
 const { payBill } = require('./billPayments');
 const { logAudit } = require('./audit');
@@ -34,6 +34,30 @@ async function expireStalePayments() {
   }
 }
 
+// Failed attempts per due date before the job stops retrying (the hourly run spaces them out).
+// "Pay now" is not limited.
+const MAX_AUTO_ATTEMPTS = 3;
+
+// Tell the business, once per due date, that automatic payment has given up
+async function alertGaveUp(bill, { attempts, last_error: lastError }) {
+  const claimed = await query(
+    `UPDATE billing_schedules SET failure_alerted_for = next_due_date
+     WHERE id = $1 AND failure_alerted_for IS DISTINCT FROM next_due_date RETURNING id`,
+    [bill.id]
+  );
+  if (!claimed.rows.length) return;
+  console.log(`[CRON] Giving up on ${bill.name} after ${attempts} failed attempts`);
+  await logAudit(null, {
+    action: 'billing.payment_gave_up', entityType: 'billing_schedule', entityId: bill.id,
+    businessId: bill.business_id, userId: null,
+    newValues: { dueDate: bill.next_due_date, attempts, lastError },
+  });
+  await notifyBillingFailed({
+    email: bill.business_email, businessName: bill.business_name, billName: bill.name,
+    amount: bill.amount, dueDate: bill.next_due_date, attempts, lastError,
+  }).catch(err => console.error('[CRON] Failure alert email error:', err.message));
+}
+
 // Check and trigger due bills — runs every hour
 async function processDueBills() {
   const today = new Date().toISOString().split('T')[0];
@@ -53,6 +77,17 @@ async function processDueBills() {
     for (const bill of due.rows) {
       try {
         if (!(await getEntitlements(bill.business_id)).has('automated_billing')) continue;
+
+        const failed = (await query(
+          `SELECT count(*)::int AS attempts, (array_agg(error_message ORDER BY initiated_at DESC))[1] AS last_error
+           FROM billing_transactions WHERE schedule_id = $1 AND due_date = $2 AND status = 'failed'`,
+          [bill.id, bill.next_due_date]
+        )).rows[0];
+        if (failed.attempts >= MAX_AUTO_ATTEMPTS) {
+          await alertGaveUp(bill, failed);
+          continue;
+        }
+
         // payBill claims the one live payment for this due date, so an in-flight or paid bill is skipped
         const result = await payBill(bill);
         if (result.status === 'busy') continue;

@@ -23,6 +23,7 @@
     <div style="font-size:22px;font-weight:700;color:#dc3545;margin-bottom:8px">KES <%= Number(s.amount).toLocaleString() %></div>
     <div style="font-size:11px;color:#888">Due on day <%= s.billing_day %> · <%= s.payment_method %></div>
     <% if(s.next_due_date){ %><div style="font-size:11px;color:#555;margin-top:4px">Next: <%= new Date(s.next_due_date).toLocaleDateString('en-KE') %></div><% } %>
+    <% if(s.next_due_date && s.failure_alerted_for && +new Date(s.failure_alerted_for) === +new Date(s.next_due_date)){ %><div style="font-size:11px;color:#9c1c1c;background:#fce8e9;border-radius:6px;padding:6px 8px;margin-top:8px">Automatic payment stopped after repeated failures. Check the payee number, then use Pay now.</div><% } %>
     <div style="display:flex;gap:8px;margin-top:12px">
       <% if(can('billing.pay')){ %>
       <form action="/billing/<%= s.id %>/trigger" method="POST" style="margin:0"><button type="submit" style="background:#0d0d0d;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer">Pay Now</button></form>
