@@ -124,7 +124,7 @@ async function getForecastData(req) {
   const incomeResult = await query(
     `SELECT EXTRACT(MONTH FROM date)::int AS month, EXTRACT(YEAR FROM date)::int AS year, SUM(amount) AS total 
      FROM income_records 
-     WHERE business_id = $1 AND date >= NOW() - INTERVAL '24 months' 
+     WHERE business_id = $1 AND voided_at IS NULL AND date >= NOW() - INTERVAL '24 months' 
      GROUP BY year, month 
      ORDER BY year, month`,
     [business_id]
@@ -134,7 +134,7 @@ async function getForecastData(req) {
   const expenseResult = await query(
     `SELECT EXTRACT(MONTH FROM date)::int AS month, EXTRACT(YEAR FROM date)::int AS year, SUM(amount) AS total 
      FROM expenses 
-     WHERE business_id = $1 AND date >= NOW() - INTERVAL '24 months' 
+     WHERE business_id = $1 AND voided_at IS NULL AND date >= NOW() - INTERVAL '24 months' 
      GROUP BY year, month 
      ORDER BY year, month`,
     [business_id]
@@ -275,7 +275,7 @@ async function getForecastData(req) {
     `SELECT category_id, name as category_name, EXTRACT(MONTH FROM date)::int AS month, EXTRACT(YEAR FROM date)::int AS year, SUM(amount) AS total
      FROM expenses
      JOIN expense_categories ON expenses.category_id = expense_categories.id
-     WHERE expenses.business_id = $1 AND date >= NOW() - INTERVAL '24 months'
+     WHERE expenses.business_id = $1 AND expenses.voided_at IS NULL AND date >= NOW() - INTERVAL '24 months'
      GROUP BY category_id, category_name, year, month
      ORDER BY category_id, year, month`,
     [business_id]

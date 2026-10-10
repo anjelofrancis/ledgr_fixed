@@ -38,11 +38,11 @@ const computeAllocation = async (req, res) => {
 
   const [income, expenses] = await Promise.all([
     query(
-      'SELECT COALESCE(SUM(amount),0) AS total FROM income_records WHERE business_id=$1 AND EXTRACT(MONTH FROM date)=$2 AND EXTRACT(YEAR FROM date)=$3',
+      'SELECT COALESCE(SUM(amount),0) AS total FROM income_records WHERE business_id=$1 AND voided_at IS NULL AND EXTRACT(MONTH FROM date)=$2 AND EXTRACT(YEAR FROM date)=$3',
       [businessId, m, y]
     ),
     query(
-      'SELECT COALESCE(SUM(amount),0) AS total FROM expenses WHERE business_id=$1 AND EXTRACT(MONTH FROM date)=$2 AND EXTRACT(YEAR FROM date)=$3',
+      'SELECT COALESCE(SUM(amount),0) AS total FROM expenses WHERE business_id=$1 AND voided_at IS NULL AND EXTRACT(MONTH FROM date)=$2 AND EXTRACT(YEAR FROM date)=$3',
       [businessId, m, y]
     ),
   ]);

@@ -14,7 +14,7 @@ const showDashboard = async (req, res) => {
                 COUNT(*) AS entries,
                 COALESCE(SUM(amount) FILTER (WHERE date = CURRENT_DATE), 0) AS today
          FROM income_records
-         WHERE business_id = $1 AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3`,
+         WHERE business_id = $1 AND voided_at IS NULL AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3`,
         [businessId, month, year]
       ),
       // Monthly expenses total
@@ -24,7 +24,7 @@ const showDashboard = async (req, res) => {
                 COALESCE(SUM(amount) FILTER (WHERE c.type = 'payroll'), 0) AS payroll
          FROM expenses e
          LEFT JOIN expense_categories c ON c.id = e.category_id
-         WHERE e.business_id = $1 AND EXTRACT(MONTH FROM e.date) = $2 AND EXTRACT(YEAR FROM e.date) = $3`,
+         WHERE e.business_id = $1 AND e.voided_at IS NULL AND EXTRACT(MONTH FROM e.date) = $2 AND EXTRACT(YEAR FROM e.date) = $3`,
         [businessId, month, year]
       ),
       // Employee stats
@@ -38,7 +38,7 @@ const showDashboard = async (req, res) => {
       // Recent income (last 5)
       query(
         `SELECT date, amount, source, description, payment_mode
-         FROM income_records WHERE business_id = $1
+         FROM income_records WHERE business_id = $1 AND voided_at IS NULL
          ORDER BY date DESC, created_at DESC LIMIT 5`,
         [businessId]
       ),

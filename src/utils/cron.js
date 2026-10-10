@@ -83,11 +83,11 @@ async function computeMonthlySavings() {
     for (const biz of businesses.rows) {
       const [income, expenses] = await Promise.all([
         query(
-          'SELECT COALESCE(SUM(amount),0) AS t FROM income_records WHERE business_id=$1 AND EXTRACT(MONTH FROM date)=$2 AND EXTRACT(YEAR FROM date)=$3',
+          'SELECT COALESCE(SUM(amount),0) AS t FROM income_records WHERE business_id=$1 AND voided_at IS NULL AND EXTRACT(MONTH FROM date)=$2 AND EXTRACT(YEAR FROM date)=$3',
           [biz.id, lastMonth, lastYear]
         ),
         query(
-          'SELECT COALESCE(SUM(amount),0) AS t FROM expenses WHERE business_id=$1 AND EXTRACT(MONTH FROM date)=$2 AND EXTRACT(YEAR FROM date)=$3',
+          'SELECT COALESCE(SUM(amount),0) AS t FROM expenses WHERE business_id=$1 AND voided_at IS NULL AND EXTRACT(MONTH FROM date)=$2 AND EXTRACT(YEAR FROM date)=$3',
           [biz.id, lastMonth, lastYear]
         ),
       ]);

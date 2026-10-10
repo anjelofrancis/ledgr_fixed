@@ -24,14 +24,14 @@ const downloadPL = async (req, res) => {
   const [income, expenses, business] = await Promise.all([
     query(
       `SELECT date, amount, description, payment_mode FROM income_records
-       WHERE business_id = $1 AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3
+       WHERE business_id = $1 AND voided_at IS NULL AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3
        ORDER BY date`,
       [businessId, m, y]
     ),
     query(
       `SELECT e.date, e.amount, e.description, e.vendor, c.name AS category
        FROM expenses e LEFT JOIN expense_categories c ON c.id = e.category_id
-       WHERE e.business_id = $1 AND EXTRACT(MONTH FROM e.date) = $2 AND EXTRACT(YEAR FROM e.date) = $3
+       WHERE e.business_id = $1 AND e.voided_at IS NULL AND EXTRACT(MONTH FROM e.date) = $2 AND EXTRACT(YEAR FROM e.date) = $3
        ORDER BY e.date`,
       [businessId, m, y]
     ),
@@ -169,7 +169,7 @@ const search = async (req, res) => {
     query(
       `SELECT 'income' AS type, date, amount, description, payment_mode AS extra
        FROM income_records
-       WHERE business_id = $1 AND date BETWEEN $2 AND $3
+       WHERE business_id = $1 AND voided_at IS NULL AND date BETWEEN $2 AND $3
          ${q ? 'AND description ILIKE $4' : ''}
        ORDER BY date DESC LIMIT 50`,
       q ? [businessId, fromDate, toDate, `%${q}%`] : [businessId, fromDate, toDate]
@@ -177,7 +177,7 @@ const search = async (req, res) => {
     query(
       `SELECT 'expense' AS type, date, amount, description, payment_method AS extra
        FROM expenses
-       WHERE business_id = $1 AND date BETWEEN $2 AND $3
+       WHERE business_id = $1 AND voided_at IS NULL AND date BETWEEN $2 AND $3
          ${q ? 'AND (description ILIKE $4 OR vendor ILIKE $4)' : ''}
        ORDER BY date DESC LIMIT 50`,
       q ? [businessId, fromDate, toDate, `%${q}%`] : [businessId, fromDate, toDate]

@@ -38,7 +38,7 @@ const listTax = async (req, res) => {
     query(
       `SELECT EXTRACT(MONTH FROM date)::int AS month,
               SUM(amount) AS gross, SUM(amount) * 0.16 AS vat
-       FROM income_records WHERE business_id = $1 AND EXTRACT(YEAR FROM date) = $2
+       FROM income_records WHERE business_id = $1 AND voided_at IS NULL AND EXTRACT(YEAR FROM date) = $2
        GROUP BY month ORDER BY month`,
       [businessId, y]
     ),
