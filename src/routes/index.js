@@ -1,6 +1,6 @@
 const express = require('express');
 const { body } = require('express-validator');
-const { authenticate, requirePermission: can, optionalAuth } = require('../middleware/auth');
+const { authenticate, requirePermission: can, requireFeature: plan, optionalAuth } = require('../middleware/auth');
 
 const authController     = require('../controllers/authController');
 const dashboardController= require('../controllers/dashboardController');
@@ -105,34 +105,34 @@ router.post('/expenses', can('expenses.create'), [
 router.post('/expenses/:id/void', can('expenses.void'), expensesController.voidExpense);
 
 // ── Inventory ────────────────────────────────────────────────────────────────
-router.get('/inventory', can('inventory.view'), inventoryController.listItems);
-router.get('/inventory/new', can('inventory.manage'), inventoryController.showNewForm);
-router.post('/inventory', can('inventory.manage'), [
+router.get('/inventory', plan('pos'), can('inventory.view'), inventoryController.listItems);
+router.get('/inventory/new', plan('pos'), can('inventory.manage'), inventoryController.showNewForm);
+router.post('/inventory', plan('pos'), can('inventory.manage'), [
   body('name').trim().notEmpty().withMessage('Product name required'),
   body('costPrice').isFloat({ min: 0 }).withMessage('Valid cost price required'),
   body('sellPrice').isFloat({ min: 0 }).withMessage('Valid sell price required'),
   body('quantity').isInt({ min: 0 }).withMessage('Valid quantity required'),
   body('reorderLevel').isInt({ min: 0 }).withMessage('Valid reorder level required'),
 ], inventoryController.createItem);
-router.get('/inventory/:id', can('inventory.view'), inventoryController.showItem);
-router.get('/inventory/:id/edit', can('inventory.manage'), inventoryController.showEditForm);
-router.post('/inventory/:id/update', can('inventory.manage'), [
+router.get('/inventory/:id', plan('pos'), can('inventory.view'), inventoryController.showItem);
+router.get('/inventory/:id/edit', plan('pos'), can('inventory.manage'), inventoryController.showEditForm);
+router.post('/inventory/:id/update', plan('pos'), can('inventory.manage'), [
   body('name').trim().notEmpty().withMessage('Product name required'),
   body('costPrice').isFloat({ min: 0 }).withMessage('Valid cost price required'),
   body('sellPrice').isFloat({ min: 0 }).withMessage('Valid sell price required'),
   body('reorderLevel').isInt({ min: 0 }).withMessage('Valid reorder level required'),
 ], inventoryController.updateItem);
-router.post('/inventory/:id/archive', can('inventory.archive'), inventoryController.archiveItem);
-router.post('/inventory/:id/adjust', can('inventory.manage'), [
+router.post('/inventory/:id/archive', plan('pos'), can('inventory.archive'), inventoryController.archiveItem);
+router.post('/inventory/:id/adjust', plan('pos'), can('inventory.manage'), [
   body('type').isIn(['restock', 'sale', 'adjustment', 'damage', 'return']).withMessage('Valid adjustment type required'),
   body('quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
 ], inventoryController.adjustStock);
 
 // ── Sales & POS ──────────────────────────────────────────────────────────────
 router.get('/sales', can('sales.view'), salesController.listSales);
-router.get('/sales/pos', can('pos.sell'), salesController.showPOS);
-router.get('/api/sales/items', can('pos.sell'), salesController.searchItemsAPI);
-router.post('/api/sales/checkout', can('pos.sell'), salesController.checkoutAPI);
+router.get('/sales/pos', plan('pos'), can('pos.sell'), salesController.showPOS);
+router.get('/api/sales/items', plan('pos'), can('pos.sell'), salesController.searchItemsAPI);
+router.post('/api/sales/checkout', plan('pos'), can('pos.sell'), salesController.checkoutAPI);
 router.get('/api/sales/receipt/:id', can('sales.view', 'pos.sell'), salesController.showReceiptAPI);
 
 // ── Quotations & Estimates ───────────────────────────────────────────────────
@@ -148,7 +148,7 @@ router.post('/api/quotations/:id/convert', can('quotations.manage'), quotationsC
 router.get('/billing', can('billing.view'), billingController.listBilling);
 router.get('/billing/new', can('billing.manage'), billingController.showNewSchedule);
 router.post('/billing', can('billing.manage'), billingController.createSchedule);
-router.post('/billing/:id/trigger', can('billing.pay'), billingController.triggerPayment);
+router.post('/billing/:id/trigger', plan('automated_billing'), can('billing.pay'), billingController.triggerPayment);
 router.post('/billing/:id/deactivate', can('billing.pay'), billingController.deactivateSchedule);
 
 // ── PART 2: Payroll ──────────────────────────────────────────────────────────
@@ -167,8 +167,8 @@ router.post('/tax/:id/paid', can('tax.pay'), taxController.markPaid);
 router.get('/analytics', can('reports.view'), analyticsController.showAnalytics);
 
 // ── PART 3: Forecast (Predictive) ──────────────────────────────────────
-router.get('/forecast', can('reports.view'), forecastController.showForecast);
-router.get('/api/forecast', can('reports.view'), forecastController.apiForecast);
+router.get('/forecast', plan('forecast'), can('reports.view'), forecastController.showForecast);
+router.get('/api/forecast', plan('forecast'), can('reports.view'), forecastController.apiForecast);
 
 // ── PART 3: Savings ──────────────────────────────────────────────────────────
 router.get('/savings', can('savings.view'), savingsController.listSavings);

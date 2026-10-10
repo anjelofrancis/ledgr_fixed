@@ -68,10 +68,21 @@ const showNewForm = async (req, res) => {
   });
 };
 
+// The plan's active-employee cap, or null when another one can be added
+const employeeLimitError = async (req) => {
+  const max = req.entitlements.limit('max_employees');
+  if (max === null) return null;
+  const active = await query('SELECT COUNT(*)::int AS n FROM employees WHERE business_id = $1 AND is_active = true', [req.user.business_id]);
+  return active.rows[0].n >= max
+    ? `The ${req.entitlements.plan.name} plan includes up to ${max} active employees. Upgrade your plan to add more.`
+    : null;
+};
+
 // POST /employees
 const createEmployee = async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty()) {
+  const limitError = errors.isEmpty() ? await employeeLimitError(req) : null;
+  if (!errors.isEmpty() || limitError) {
     const departments = await query(
       'SELECT id, name FROM departments WHERE business_id = $1 ORDER BY name',
       [req.user.business_id]
@@ -80,7 +91,7 @@ const createEmployee = async (req, res) => {
       title: 'Add Employee — LEDGR',
       employee: req.body,
       departments: departments.rows,
-      error: errors.array()[0].msg,
+      error: limitError || errors.array()[0].msg,
     });
   }
 
@@ -127,6 +138,7 @@ const showEmployee = async (req, res) => {
   res.render('pages/employees/show', {
     title: `${result.rows[0].first_name} ${result.rows[0].last_name} — LEDGR`,
     employee: result.rows[0],
+    query: req.query,
   });
 };
 
@@ -159,6 +171,10 @@ const updateEmployee = async (req, res) => {
   } = req.body;
 
   const before = await query('SELECT * FROM employees WHERE id = $1 AND business_id = $2', [req.params.id, req.user.business_id]);
+  // Reactivating counts against the plan's employee cap
+  if (isActive === 'on' && before.rows[0] && !before.rows[0].is_active && await employeeLimitError(req)) {
+    return res.redirect(`/employees/${req.params.id}?error=employee_limit`);
+  }
   const after = await query(
     `UPDATE employees SET
       first_name=$1, last_name=$2, employee_number=$3, id_number=$4,

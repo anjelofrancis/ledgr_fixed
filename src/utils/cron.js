@@ -4,6 +4,7 @@
 
 const { query } = require('../../config/database');
 const { notifyBillingReminder } = require('./notifications');
+const { getEntitlements } = require('./entitlements');
 
 // Simple interval-based scheduler (use node-cron in production)
 const MINUTE = 60 * 1000;
@@ -24,6 +25,7 @@ async function processDueBills() {
     );
 
     for (const bill of due.rows) {
+      if (!(await getEntitlements(bill.business_id)).has('automated_billing')) continue;
       console.log(`[CRON] Triggering payment: ${bill.name} — KES ${bill.amount}`);
       // Import billingController dynamically to avoid circular deps
       // In production: use a queue (BullMQ, etc.)

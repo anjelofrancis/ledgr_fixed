@@ -25,6 +25,13 @@
     </div>
   </div>
 
+  <% if (query.error === 'employee_limit') { %>
+  <div style="margin:1rem 2rem 0;padding:12px 16px;background:#fce8e9;border-radius:8px;color:#9c1c1c;font-size:13px">
+    <i class="fas fa-circle-exclamation"></i> Your plan's active-employee limit is reached, so this employee was not reactivated.
+    <% if (can('settings.view')) { %><a href="/settings/plan">See plans</a><% } %>
+  </div>
+  <% } %>
+
   <div style="padding:1.5rem 2rem;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
 
     <!-- Personal Info -->
