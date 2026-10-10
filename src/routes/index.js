@@ -117,7 +117,7 @@ router.post('/inventory/:id/update', authorize('admin','manager'), [
   body('sellPrice').isFloat({ min: 0 }).withMessage('Valid sell price required'),
   body('reorderLevel').isInt({ min: 0 }).withMessage('Valid reorder level required'),
 ], inventoryController.updateItem);
-router.post('/inventory/:id/delete', authorize('admin'), inventoryController.deleteItem);
+router.post('/inventory/:id/archive', authorize('admin'), inventoryController.archiveItem);
 router.post('/inventory/:id/adjust', authorize('admin','manager'), [
   body('type').isIn(['restock', 'sale', 'adjustment', 'damage', 'return']).withMessage('Valid adjustment type required'),
   body('quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
@@ -144,7 +144,7 @@ router.get('/billing', billingController.listBilling);
 router.get('/billing/new', authorize('admin','manager'), billingController.showNewSchedule);
 router.post('/billing', authorize('admin','manager'), billingController.createSchedule);
 router.post('/billing/:id/trigger', authorize('admin'), billingController.triggerPayment);
-router.post('/billing/:id/delete', authorize('admin'), billingController.deleteSchedule);
+router.post('/billing/:id/deactivate', authorize('admin'), billingController.deactivateSchedule);
 
 // ── PART 2: Payroll ──────────────────────────────────────────────────────────
 router.get('/payroll', payrollController.listPayroll);

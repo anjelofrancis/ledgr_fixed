@@ -30,7 +30,7 @@ const listItems = async (req, res) => {
       SELECT i.*, c.name AS category_name 
       FROM inventory_items i
       LEFT JOIN inventory_categories c ON c.id = i.category_id
-      WHERE i.business_id = $1
+      WHERE i.business_id = $1 AND i.is_active = true
     `;
     const queryParams = [businessId];
     let paramIndex = 2;
@@ -59,7 +59,7 @@ const listItems = async (req, res) => {
           COUNT(id) FILTER (WHERE quantity > 0 AND quantity <= reorder_level) AS low_stock_count,
           COUNT(id) FILTER (WHERE quantity = 0) AS out_of_stock_count
          FROM inventory_items 
-         WHERE business_id = $1`,
+         WHERE business_id = $1 AND is_active = true`,
         [businessId]
       )
     ]);
@@ -274,13 +274,23 @@ const updateItem = async (req, res) => {
   }
 };
 
-const deleteItem = async (req, res) => {
+// Archive rather than delete: deleting cascaded away the item's stock movement history.
+const archiveItem = async (req, res) => {
   try {
-    await query('DELETE FROM inventory_items WHERE id = $1 AND business_id = $2', [req.params.id, req.user.business_id]);
-    res.redirect('/inventory?deleted=1');
+    const result = await query(
+      'UPDATE inventory_items SET is_active = false, updated_at = NOW() WHERE id = $1 AND business_id = $2 AND is_active = true RETURNING name, sku, quantity',
+      [req.params.id, req.user.business_id]
+    );
+    if (result.rows.length) {
+      await logAudit(req, {
+        action: 'inventory.archive', entityType: 'inventory_item', entityId: req.params.id,
+        oldValues: { is_active: true }, newValues: { is_active: false, ...result.rows[0] },
+      });
+    }
+    res.redirect('/inventory?archived=1');
   } catch (err) {
-    console.error('Delete item error:', err);
-    res.redirect('/inventory?error=delete_failed');
+    console.error('Archive item error:', err);
+    res.redirect('/inventory?error=archive_failed');
   }
 };
 
@@ -353,6 +363,6 @@ module.exports = {
   showItem,
   showEditForm,
   updateItem,
-  deleteItem,
+  archiveItem,
   adjustStock
 };

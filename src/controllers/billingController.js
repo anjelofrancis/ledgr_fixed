@@ -60,7 +60,7 @@ const stkPush = async ({ phone, amount, accountRef, description }) => {
 const listBilling = async (req, res) => {
   const [schedules, recent] = await Promise.all([
     query(
-      'SELECT * FROM billing_schedules WHERE business_id = $1 ORDER BY billing_day',
+      'SELECT * FROM billing_schedules WHERE business_id = $1 AND is_active = true ORDER BY billing_day',
       [req.user.business_id]
     ),
     query(
@@ -108,7 +108,7 @@ const createSchedule = async (req, res) => {
 const triggerPayment = async (req, res) => {
   const { id } = req.params;
   const schedule = await query(
-    'SELECT * FROM billing_schedules WHERE id = $1 AND business_id = $2',
+    'SELECT * FROM billing_schedules WHERE id = $1 AND business_id = $2 AND is_active = true',
     [id, req.user.business_id]
   );
   if (!schedule.rows.length) return res.redirect('/billing');
@@ -191,9 +191,19 @@ const mpesaCallback = async (req, res) => {
   res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
 };
 
-const deleteSchedule = async (req, res) => {
-  await query('DELETE FROM billing_schedules WHERE id = $1 AND business_id = $2', [req.params.id, req.user.business_id]);
-  res.redirect('/billing?deleted=1');
+// Deactivate rather than delete so past payments keep their schedule name.
+const deactivateSchedule = async (req, res) => {
+  const result = await query(
+    'UPDATE billing_schedules SET is_active = false WHERE id = $1 AND business_id = $2 AND is_active = true RETURNING name, amount',
+    [req.params.id, req.user.business_id]
+  );
+  if (result.rows.length) {
+    await logAudit(req, {
+      action: 'billing.schedule_deactivate', entityType: 'billing_schedule', entityId: req.params.id,
+      oldValues: { is_active: true }, newValues: { is_active: false, ...result.rows[0] },
+    });
+  }
+  res.redirect('/billing?deactivated=1');
 };
 
-module.exports = { listBilling, showNewSchedule, createSchedule, triggerPayment, mpesaCallback, deleteSchedule };
+module.exports = { listBilling, showNewSchedule, createSchedule, triggerPayment, mpesaCallback, deactivateSchedule };

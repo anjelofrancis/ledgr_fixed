@@ -56,8 +56,8 @@
           </td>
           <td style="display:flex;gap:8px;align-items:center;">
             <a href="/inventory/<%= item.id %>/edit" style="color:#888;font-size:12px"><i class="fas fa-pen"></i></a>
-            <% if(user && (user.role === 'admin' || user.role === 'manager')){ %>
-            <form action="/inventory/<%= item.id %>/delete" method="POST" onsubmit="return confirm('Delete this product?')"><button type="submit" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:12px"><i class="fas fa-trash"></i></button></form>
+            <% if(user && user.role === 'admin'){ %>
+            <form action="/inventory/<%= item.id %>/archive" method="POST" onsubmit="return confirm('Archive this product? It will be hidden from inventory and the POS, but its stock history is kept.')"><button type="submit" title="Archive" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:12px"><i class="fas fa-box-archive"></i></button></form>
             <% } %>
           </td>
         </tr>
