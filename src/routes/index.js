@@ -20,6 +20,7 @@ const inventoryController = require('../controllers/inventoryController');
 const salesController = require('../controllers/salesController');
 const quotationsController = require('../controllers/quotationsController');
 const activityController = require('../controllers/activityController');
+const planController = require('../controllers/planController');
 
 const router = express.Router();
 
@@ -190,6 +191,7 @@ router.get('/settings/users/:id/access', can('users.manage'), settingsController
 router.post('/settings/users/:id/access', can('users.manage'), settingsController.updateAccess);
 router.post('/settings/password', settingsController.updatePassword);
 router.get('/settings/activity', can('activity.view'), activityController.listActivity);
+router.get('/settings/plan', can('settings.view'), planController.showPlan);
 
 // 404
 router.use((req, res) =>

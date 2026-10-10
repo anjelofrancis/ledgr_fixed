@@ -10,9 +10,12 @@
       <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
       <div><h1 class="page-title">Settings</h1></div>
     </div>
-    <% if (can('activity.view')) { %>
-    <a href="/settings/activity" class="btn-add"><i class="fas fa-clock-rotate-left"></i> Activity log</a>
-    <% } %>
+    <div style="display:flex;gap:8px">
+      <a href="/settings/plan" class="btn-add" style="background:#fff;color:#0d0d0d;border:1px solid #ddd"><i class="fas fa-crown"></i> Plan: <%= entitlements.plan.name %></a>
+      <% if (can('activity.view')) { %>
+      <a href="/settings/activity" class="btn-add"><i class="fas fa-clock-rotate-left"></i> Activity log</a>
+      <% } %>
+    </div>
   </div>
 
   <% if(success){ %>

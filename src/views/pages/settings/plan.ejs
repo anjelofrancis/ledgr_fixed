@@ -1,0 +1,76 @@
+<%- include('../../partials/head') %>
+<link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body class="app-body">
+<%- include('../../partials/sidebar') %>
+<%
+  const stateText = {
+    trial: `Free trial — ${ent.trialDaysLeft} day${ent.trialDaysLeft === 1 ? '' : 's'} left`,
+    trial_ended: 'Your trial has ended, so you are on the Free plan',
+    active: 'Active',
+    grace: 'Payment overdue — features stay on during a short grace period',
+    cancelled: 'Cancelled — features stay on until the end of the paid period',
+    lapsed: 'Your paid plan has lapsed, so you are on the Free plan',
+    none: 'Free plan',
+  }[ent.state];
+  const maxEmployees = ent.limit('max_employees');
+  const subscribed = ent.subscribedPlan;
+%>
+<main class="main-content">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div><h1 class="page-title">Plan & billing</h1>
+      <p class="page-sub"><%= user.business_name %></p></div>
+    </div>
+    <a href="/settings" class="btn-add" style="background:#fff;color:#0d0d0d;border:1px solid #ddd"><i class="fas fa-arrow-left"></i> Settings</a>
+  </div>
+
+  <div style="padding:0 2rem 2rem">
+    <div class="dash-card" style="padding:1.5rem;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:2rem;align-items:center">
+      <div>
+        <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:.05em">Current plan</div>
+        <div style="font-size:24px;font-weight:700"><%= ent.plan.name %></div>
+        <div style="font-size:13px;color:<%= ['trial_ended','lapsed','grace'].includes(ent.state) ? '#9c1c1c' : '#555' %>"><%= stateText %></div>
+        <% if (subscribed && subscribed.code !== ent.plan.code) { %>
+        <div style="font-size:12px;color:#888;margin-top:4px">Subscribed plan: <%= subscribed.name %></div>
+        <% } %>
+        <% if (ent.subscription && ent.subscription.current_period_end && ['active','cancelled','grace'].includes(ent.state)) { %>
+        <div style="font-size:12px;color:#888;margin-top:4px">Paid through <%= formatDate(ent.subscription.current_period_end) %></div>
+        <% } %>
+      </div>
+      <div>
+        <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:.05em">Active employees</div>
+        <div style="font-size:24px;font-weight:700"><%= usage.employees %><span style="font-size:14px;color:#888"> / <%= maxEmployees === null ? 'unlimited' : maxEmployees %></span></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+      <% plans.forEach(p => { const current = p.code === ent.plan.code; const limits = p.limits || {}; %>
+      <div class="dash-card" style="padding:1.5rem;<%= current ? 'outline:2px solid #0d0d0d' : '' %>">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h2 style="font-size:16px;font-weight:600"><%= p.name %></h2>
+          <% if (current) { %><span class="badge" style="background:#0d0d0d;color:#fff">Current</span><% } %>
+        </div>
+        <div style="font-size:22px;font-weight:700;margin:8px 0 12px"><%= formatCurrency(p.price_monthly, p.currency) %><span style="font-size:12px;color:#888;font-weight:400">/mo</span></div>
+        <ul style="list-style:none;padding:0;margin:0 0 1rem;font-size:13px;line-height:1.9">
+          <li><i class="fas fa-check" style="color:#00b87f"></i> Income, expenses, quotations, payroll & tax</li>
+          <li><i class="fas fa-check" style="color:#00b87f"></i> <%= limits.max_employees === undefined ? 'Unlimited employees' : `Up to ${limits.max_employees} employees` %></li>
+          <% Object.entries(featureLabels).forEach(([key, label]) => { const has = (p.features || []).includes(key); %>
+          <li style="color:<%= has ? 'inherit' : '#bbb' %>"><i class="fas <%= has ? 'fa-check' : 'fa-xmark' %>" style="color:<%= has ? '#00b87f' : '#ccc' %>"></i> <%= label %></li>
+          <% }) %>
+        </ul>
+        <% if (!current && Number(p.price_monthly) > 0) { %>
+        <a class="btn-add" style="display:inline-flex"
+           href="mailto:sales@ledgr.co.ke?subject=<%= encodeURIComponent(`Upgrade ${user.business_name} to ${p.name}`) %>&body=<%= encodeURIComponent(`Business: ${user.business_name}\nAccount email: ${user.email}\nRequested plan: ${p.name}`) %>">
+          Upgrade to <%= p.name %>
+        </a>
+        <% } %>
+      </div>
+      <% }) %>
+    </div>
+    <p style="font-size:12px;color:#888;margin-top:1rem">Upgrades are activated by the LEDGR team once payment is received.</p>
+  </div>
+</main>
+<script src="/js/dashboard.js"></script>
+</body></html>
