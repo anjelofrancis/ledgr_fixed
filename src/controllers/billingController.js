@@ -1,6 +1,6 @@
 const { query } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
-const { payBill } = require('../utils/billPayments');
+const { payBill, markPaid } = require('../utils/billPayments');
 const { logAudit } = require('../utils/audit');
 
 // ============================================
@@ -89,13 +89,16 @@ const mpesaCallback = async (req, res) => {
     ? cb.CallbackMetadata?.Item?.find(i => i.Name === 'MpesaReceiptNumber')?.Value
     : null;
 
+  // Only settle payments still in flight, so a repeated callback from Safaricom is a no-op
   const updated = await query(
     `UPDATE billing_transactions
      SET status = $1, mpesa_ref = $2, completed_at = NOW(), error_message = $3
-     WHERE mpesa_checkout_id = $4 RETURNING id, business_id, amount`,
+     WHERE mpesa_checkout_id = $4 AND status = 'processing'
+     RETURNING id, business_id, amount, schedule_id, due_date::text AS due_date`,
     [success ? 'completed' : 'failed', mpesaRef, success ? null : cb.ResultDesc, checkoutId]
   );
   for (const tx of updated.rows) {
+    if (success) await markPaid({ scheduleId: tx.schedule_id, dueDate: tx.due_date });
     await logAudit(req, {
       action: success ? 'billing.payment_completed' : 'billing.payment_failed',
       entityType: 'billing_transaction', entityId: tx.id, businessId: tx.business_id, userId: null,

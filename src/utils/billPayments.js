@@ -91,16 +91,7 @@ const payBill = async (schedule) => {
       [result.CheckoutRequestID || null, accepted ? 'processing' : 'failed', error, transactionId]
     );
 
-    if (accepted) {
-      // Update next due date
-      const next = new Date();
-      next.setMonth(next.getMonth() + 1);
-      next.setDate(schedule.billing_day);
-      await query(
-        'UPDATE billing_schedules SET last_paid_at = NOW(), next_due_date = $1 WHERE id = $2',
-        [next.toISOString().split('T')[0], schedule.id]
-      );
-    }
+    // The due date only moves on once M-Pesa confirms the payment (see markPaid)
     return { status: accepted ? 'sent' : 'failed', transactionId, error };
   } catch (err) {
     await query(
@@ -111,4 +102,24 @@ const payBill = async (schedule) => {
   }
 };
 
-module.exports = { stkPush, payBill };
+// A confirmed payment settles its due date: move the schedule to the next billing day after it.
+// If the bill was overdue by more than a month, skip ahead to the next billing day after today
+// rather than paying every missed month back to back.
+const markPaid = async ({ scheduleId, dueDate }) => {
+  if (!scheduleId || !dueDate) return;
+  await query(
+    `UPDATE billing_schedules s
+     SET last_paid_at = NOW(),
+         next_due_date = GREATEST(s.next_due_date, CASE
+           WHEN (date_trunc('month', $2::date) + interval '1 month')::date + (s.billing_day - 1) > CURRENT_DATE
+             THEN (date_trunc('month', $2::date) + interval '1 month')::date + (s.billing_day - 1)
+           WHEN date_trunc('month', CURRENT_DATE)::date + (s.billing_day - 1) > CURRENT_DATE
+             THEN date_trunc('month', CURRENT_DATE)::date + (s.billing_day - 1)
+           ELSE (date_trunc('month', CURRENT_DATE) + interval '1 month')::date + (s.billing_day - 1)
+         END)
+     WHERE s.id = $1`,
+    [scheduleId, dueDate]
+  );
+};
+
+module.exports = { stkPush, payBill, markPaid };
