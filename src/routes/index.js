@@ -87,7 +87,7 @@ router.post('/income', [
   body('date').isDate().withMessage('Valid date required'),
   body('amount').isFloat({ min: 0.01 }).withMessage('Valid amount required'),
 ], incomeController.createIncome);
-router.post('/income/:id/delete', authorize('admin','manager'), incomeController.deleteIncome);
+router.post('/income/:id/void', authorize('admin','manager'), incomeController.voidIncome);
 
 // ── PART 2: Expenses ─────────────────────────────────────────────────────────
 router.get('/expenses', expensesController.listExpenses);
@@ -97,7 +97,7 @@ router.post('/expenses', [
   body('amount').isFloat({ min: 0.01 }).withMessage('Valid amount required'),
   body('description').trim().notEmpty().withMessage('Description required'),
 ], expensesController.createExpense);
-router.post('/expenses/:id/delete', authorize('admin','manager'), expensesController.deleteExpense);
+router.post('/expenses/:id/void', authorize('admin','manager'), expensesController.voidExpense);
 
 // ── Inventory ────────────────────────────────────────────────────────────────
 router.get('/inventory', inventoryController.listItems);

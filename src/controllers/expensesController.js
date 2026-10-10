@@ -17,7 +17,7 @@ const listExpenses = async (req, res) => {
               c.name AS category_name, c.type AS category_type
        FROM expenses e
        LEFT JOIN expense_categories c ON c.id = e.category_id
-       WHERE e.business_id = $1
+       WHERE e.business_id = $1 AND e.voided_at IS NULL
          AND EXTRACT(MONTH FROM e.date) = $2
          AND EXTRACT(YEAR FROM e.date) = $3
          ${type ? 'AND c.type = $4' : ''}
@@ -32,7 +32,7 @@ const listExpenses = async (req, res) => {
               COALESCE(SUM(e.amount) FILTER (WHERE c.type = 'maintenance'), 0) AS maintenance,
               COALESCE(SUM(e.amount) FILTER (WHERE c.type = 'payroll'), 0) AS payroll
        FROM expenses e LEFT JOIN expense_categories c ON c.id = e.category_id
-       WHERE e.business_id = $1 AND EXTRACT(MONTH FROM e.date) = $2 AND EXTRACT(YEAR FROM e.date) = $3`,
+       WHERE e.business_id = $1 AND e.voided_at IS NULL AND EXTRACT(MONTH FROM e.date) = $2 AND EXTRACT(YEAR FROM e.date) = $3`,
       [businessId, m, y]
     ),
   ]);
@@ -85,14 +85,26 @@ const createExpense = async (req, res) => {
   res.redirect('/expenses?success=1');
 };
 
-const deleteExpense = async (req, res) => {
+// POST /expenses/:id/void — financial records are voided, never deleted
+const voidExpense = async (req, res) => {
+  const reason = (req.body.reason || '').trim().slice(0, 500) || 'No reason given';
   try {
-    await query('DELETE FROM expenses WHERE id = $1 AND business_id = $2', [req.params.id, req.user.business_id]);
-    res.redirect('/expenses?deleted=1');
+    const result = await query(
+      `UPDATE expenses SET voided_at = NOW(), voided_by = $1, void_reason = $2
+       WHERE id = $3 AND business_id = $4 AND voided_at IS NULL RETURNING *`,
+      [req.user.id, reason, req.params.id, req.user.business_id]
+    );
+    if (!result.rows.length) return res.redirect('/expenses?error=not_found');
+    await logAudit(req, {
+      action: 'expense.void', entityType: 'expense', entityId: req.params.id,
+      oldValues: { ...result.rows[0], voided_at: null, voided_by: null, void_reason: null },
+      newValues: { voided_at: result.rows[0].voided_at, void_reason: reason },
+    });
+    res.redirect('/expenses?voided=1');
   } catch (err) {
-    console.error('Expense delete error:', err);
-    res.redirect('/expenses?error=delete_failed');
+    console.error('Expense void error:', err);
+    res.redirect('/expenses?error=void_failed');
   }
 };
 
-module.exports = { listExpenses, showNewForm, createExpense, deleteExpense };
+module.exports = { listExpenses, showNewForm, createExpense, voidExpense };

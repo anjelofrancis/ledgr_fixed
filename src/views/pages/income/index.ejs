@@ -67,7 +67,7 @@
           <td><%= r.description || r.source || 'Daily sales' %></td>
           <td><span class="badge badge-<%= r.payment_mode %>"><%= r.payment_mode %></span></td>
           <td class="right amount-positive"><%= formatCurrency(r.amount, user.currency) %></td>
-          <td><% if(user.role==='admin'||user.role==='manager'){ %><form action="/income/<%=r.id%>/delete" method="POST" onsubmit="return confirm('Delete this entry?')"><button type="submit" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:12px"><i class="fas fa-trash"></i></button></form><% } %></td>
+          <td><% if(user.role==='admin'||user.role==='manager'){ %><form action="/income/<%=r.id%>/void" method="POST" onsubmit="var r=prompt('Reason for voiding this entry? It stays in the audit trail but is removed from totals.');if(r===null)return false;this.reason.value=r;return true;"><input type="hidden" name="reason"><button type="submit" title="Void entry" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:12px"><i class="fas fa-ban"></i></button></form><% } %></td>
         </tr>
         <% }) %>
         </tbody>

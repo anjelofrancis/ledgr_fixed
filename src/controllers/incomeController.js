@@ -16,7 +16,7 @@ const listIncome = async (req, res) => {
     query(
       `SELECT id, date, amount, source, description, payment_mode, mpesa_ref, is_verified, created_at
        FROM income_records
-       WHERE business_id = $1
+       WHERE business_id = $1 AND voided_at IS NULL
          AND EXTRACT(MONTH FROM date) = $2
          AND EXTRACT(YEAR FROM date) = $3
          ${mode ? 'AND payment_mode = $4' : ''}
@@ -32,7 +32,7 @@ const listIncome = async (req, res) => {
          COUNT(*) AS entry_count,
          COALESCE(AVG(amount), 0) AS daily_avg
        FROM income_records
-       WHERE business_id = $1
+       WHERE business_id = $1 AND voided_at IS NULL
          AND EXTRACT(MONTH FROM date) = $2
          AND EXTRACT(YEAR FROM date) = $3`,
       [businessId, m, y]
@@ -43,7 +43,7 @@ const listIncome = async (req, res) => {
   const daily = await query(
     `SELECT date::text, SUM(amount) AS total
      FROM income_records
-     WHERE business_id = $1 AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3
+     WHERE business_id = $1 AND voided_at IS NULL AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3
      GROUP BY date ORDER BY date`,
     [businessId, m, y]
   );
@@ -97,18 +97,26 @@ const createIncome = async (req, res) => {
   }
 };
 
-// POST /income/:id/delete
-const deleteIncome = async (req, res) => {
+// POST /income/:id/void — financial records are voided, never deleted
+const voidIncome = async (req, res) => {
+  const reason = (req.body.reason || '').trim().slice(0, 500) || 'No reason given';
   try {
-    await query(
-      'DELETE FROM income_records WHERE id = $1 AND business_id = $2',
-      [req.params.id, req.user.business_id]
+    const result = await query(
+      `UPDATE income_records SET voided_at = NOW(), voided_by = $1, void_reason = $2
+       WHERE id = $3 AND business_id = $4 AND voided_at IS NULL RETURNING *`,
+      [req.user.id, reason, req.params.id, req.user.business_id]
     );
-    res.redirect('/income?deleted=1');
+    if (!result.rows.length) return res.redirect('/income?error=not_found');
+    await logAudit(req, {
+      action: 'income.void', entityType: 'income_record', entityId: req.params.id,
+      oldValues: { ...result.rows[0], voided_at: null, voided_by: null, void_reason: null },
+      newValues: { voided_at: result.rows[0].voided_at, void_reason: reason },
+    });
+    res.redirect('/income?voided=1');
   } catch (err) {
-    console.error('Income delete error:', err);
-    res.redirect('/income?error=delete_failed');
+    console.error('Income void error:', err);
+    res.redirect('/income?error=void_failed');
   }
 };
 
-module.exports = { listIncome, showNewForm, createIncome, deleteIncome };
+module.exports = { listIncome, showNewForm, createIncome, voidIncome };
