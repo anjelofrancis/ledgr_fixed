@@ -66,13 +66,6 @@ const deny = (req, res) => {
   return res.status(403).json({ success: false, message: 'Insufficient permissions' });
 };
 
-// Role-based authorization factory
-const authorize = (...roles) => (req, res, next) => {
-  if (!req.user) return res.status(401).json({ success: false, message: 'Not authenticated' });
-  if (!roles.includes(req.user.role)) return deny(req, res);
-  next();
-};
-
 // Permission-based authorization: passes if the user has ANY of the listed permissions
 const requirePermission = (...perms) => (req, res, next) => {
   if (!req.user) return res.status(401).json({ success: false, message: 'Not authenticated' });
@@ -99,4 +92,4 @@ const optionalAuth = async (req, res, next) => {
   next();
 };
 
-module.exports = { authenticate, authorize, requirePermission, optionalAuth };
+module.exports = { authenticate, requirePermission, optionalAuth };

@@ -1,6 +1,6 @@
 const express = require('express');
 const { body } = require('express-validator');
-const { authenticate, authorize, optionalAuth } = require('../middleware/auth');
+const { authenticate, requirePermission: can, optionalAuth } = require('../middleware/auth');
 
 const authController     = require('../controllers/authController');
 const dashboardController= require('../controllers/dashboardController');
@@ -63,127 +63,131 @@ router.post('/q/:token/action', quotationsController.publicQuoteAction);
 // ── PROTECTED ────────────────────────────────────────────────────────────────
 router.use(authenticate);
 
-// Dashboard
-router.get('/dashboard', dashboardController.showDashboard);
+// Dashboard (POS-only users land on the till instead)
+router.get('/dashboard', (req, res, next) => {
+  if (req.user.can('dashboard.view')) return dashboardController.showDashboard(req, res, next);
+  if (req.user.can('pos.sell')) return res.redirect('/sales/pos');
+  next();
+}, can('dashboard.view'));
 
 // ── PART 1: Employees ────────────────────────────────────────────────────────
-router.get('/employees', employeeController.listEmployees);
-router.get('/employees/departments', authorize('admin','manager'), employeeController.listDepartments);
-router.get('/employees/new', authorize('admin','manager'), employeeController.showNewForm);
-router.post('/employees', authorize('admin','manager'), [
+router.get('/employees', can('employees.view'), employeeController.listEmployees);
+router.get('/employees/departments', can('employees.manage'), employeeController.listDepartments);
+router.get('/employees/new', can('employees.manage'), employeeController.showNewForm);
+router.post('/employees', can('employees.manage'), [
   body('firstName').trim().notEmpty().withMessage('First name required'),
   body('lastName').trim().notEmpty().withMessage('Last name required'),
   body('salary').isFloat({ min: 0 }).withMessage('Valid salary required'),
   body('startDate').isDate().withMessage('Valid start date required'),
 ], employeeController.createEmployee);
-router.get('/employees/:id', employeeController.showEmployee);
-router.get('/employees/:id/edit', authorize('admin','manager'), employeeController.showEditForm);
-router.post('/employees/:id/update', authorize('admin','manager'), employeeController.updateEmployee);
-router.post('/employees/:id/deactivate', authorize('admin'), employeeController.deactivateEmployee);
+router.get('/employees/:id', can('employees.view'), employeeController.showEmployee);
+router.get('/employees/:id/edit', can('employees.manage'), employeeController.showEditForm);
+router.post('/employees/:id/update', can('employees.manage'), employeeController.updateEmployee);
+router.post('/employees/:id/deactivate', can('employees.deactivate'), employeeController.deactivateEmployee);
 
 // ── PART 2: Income ───────────────────────────────────────────────────────────
-router.get('/income', incomeController.listIncome);
-router.get('/income/new', incomeController.showNewForm);
-router.post('/income', [
+router.get('/income', can('income.view'), incomeController.listIncome);
+router.get('/income/new', can('income.create'), incomeController.showNewForm);
+router.post('/income', can('income.create'), [
   body('date').isDate().withMessage('Valid date required'),
   body('amount').isFloat({ min: 0.01 }).withMessage('Valid amount required'),
 ], incomeController.createIncome);
-router.post('/income/:id/void', authorize('admin','manager'), incomeController.voidIncome);
+router.post('/income/:id/void', can('income.void'), incomeController.voidIncome);
 
 // ── PART 2: Expenses ─────────────────────────────────────────────────────────
-router.get('/expenses', expensesController.listExpenses);
-router.get('/expenses/new', expensesController.showNewForm);
-router.post('/expenses', [
+router.get('/expenses', can('expenses.view'), expensesController.listExpenses);
+router.get('/expenses/new', can('expenses.create'), expensesController.showNewForm);
+router.post('/expenses', can('expenses.create'), [
   body('date').isDate().withMessage('Valid date required'),
   body('amount').isFloat({ min: 0.01 }).withMessage('Valid amount required'),
   body('description').trim().notEmpty().withMessage('Description required'),
 ], expensesController.createExpense);
-router.post('/expenses/:id/void', authorize('admin','manager'), expensesController.voidExpense);
+router.post('/expenses/:id/void', can('expenses.void'), expensesController.voidExpense);
 
 // ── Inventory ────────────────────────────────────────────────────────────────
-router.get('/inventory', inventoryController.listItems);
-router.get('/inventory/new', authorize('admin','manager'), inventoryController.showNewForm);
-router.post('/inventory', authorize('admin','manager'), [
+router.get('/inventory', can('inventory.view'), inventoryController.listItems);
+router.get('/inventory/new', can('inventory.manage'), inventoryController.showNewForm);
+router.post('/inventory', can('inventory.manage'), [
   body('name').trim().notEmpty().withMessage('Product name required'),
   body('costPrice').isFloat({ min: 0 }).withMessage('Valid cost price required'),
   body('sellPrice').isFloat({ min: 0 }).withMessage('Valid sell price required'),
   body('quantity').isInt({ min: 0 }).withMessage('Valid quantity required'),
   body('reorderLevel').isInt({ min: 0 }).withMessage('Valid reorder level required'),
 ], inventoryController.createItem);
-router.get('/inventory/:id', inventoryController.showItem);
-router.get('/inventory/:id/edit', authorize('admin','manager'), inventoryController.showEditForm);
-router.post('/inventory/:id/update', authorize('admin','manager'), [
+router.get('/inventory/:id', can('inventory.view'), inventoryController.showItem);
+router.get('/inventory/:id/edit', can('inventory.manage'), inventoryController.showEditForm);
+router.post('/inventory/:id/update', can('inventory.manage'), [
   body('name').trim().notEmpty().withMessage('Product name required'),
   body('costPrice').isFloat({ min: 0 }).withMessage('Valid cost price required'),
   body('sellPrice').isFloat({ min: 0 }).withMessage('Valid sell price required'),
   body('reorderLevel').isInt({ min: 0 }).withMessage('Valid reorder level required'),
 ], inventoryController.updateItem);
-router.post('/inventory/:id/archive', authorize('admin'), inventoryController.archiveItem);
-router.post('/inventory/:id/adjust', authorize('admin','manager'), [
+router.post('/inventory/:id/archive', can('inventory.archive'), inventoryController.archiveItem);
+router.post('/inventory/:id/adjust', can('inventory.manage'), [
   body('type').isIn(['restock', 'sale', 'adjustment', 'damage', 'return']).withMessage('Valid adjustment type required'),
   body('quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
 ], inventoryController.adjustStock);
 
 // ── Sales & POS ──────────────────────────────────────────────────────────────
-router.get('/sales', salesController.listSales);
-router.get('/sales/pos', salesController.showPOS);
-router.get('/api/sales/items', salesController.searchItemsAPI);
-router.post('/api/sales/checkout', salesController.checkoutAPI);
-router.get('/api/sales/receipt/:id', salesController.showReceiptAPI);
+router.get('/sales', can('sales.view'), salesController.listSales);
+router.get('/sales/pos', can('pos.sell'), salesController.showPOS);
+router.get('/api/sales/items', can('pos.sell'), salesController.searchItemsAPI);
+router.post('/api/sales/checkout', can('pos.sell'), salesController.checkoutAPI);
+router.get('/api/sales/receipt/:id', can('sales.view', 'pos.sell'), salesController.showReceiptAPI);
 
 // ── Quotations & Estimates ───────────────────────────────────────────────────
-router.get('/quotations', quotationsController.listQuotations);
-router.get('/quotations/new', authorize('admin','manager'), quotationsController.showForm);
-router.get('/quotations/:id/edit', authorize('admin','manager'), quotationsController.showForm);
-router.get('/quotations/:id', quotationsController.viewQuotation);
-router.post('/api/quotations', authorize('admin','manager'), quotationsController.saveQuotationAPI);
-router.post('/api/quotations/:id/status', authorize('admin','manager'), quotationsController.updateStatusAPI);
-router.post('/api/quotations/:id/convert', authorize('admin','manager'), quotationsController.convertToSaleAPI);
+router.get('/quotations', can('quotations.view'), quotationsController.listQuotations);
+router.get('/quotations/new', can('quotations.manage'), quotationsController.showForm);
+router.get('/quotations/:id/edit', can('quotations.manage'), quotationsController.showForm);
+router.get('/quotations/:id', can('quotations.view'), quotationsController.viewQuotation);
+router.post('/api/quotations', can('quotations.manage'), quotationsController.saveQuotationAPI);
+router.post('/api/quotations/:id/status', can('quotations.manage'), quotationsController.updateStatusAPI);
+router.post('/api/quotations/:id/convert', can('quotations.manage'), quotationsController.convertToSaleAPI);
 
 // ── PART 2: Billing ──────────────────────────────────────────────────────────
-router.get('/billing', billingController.listBilling);
-router.get('/billing/new', authorize('admin','manager'), billingController.showNewSchedule);
-router.post('/billing', authorize('admin','manager'), billingController.createSchedule);
-router.post('/billing/:id/trigger', authorize('admin'), billingController.triggerPayment);
-router.post('/billing/:id/deactivate', authorize('admin'), billingController.deactivateSchedule);
+router.get('/billing', can('billing.view'), billingController.listBilling);
+router.get('/billing/new', can('billing.manage'), billingController.showNewSchedule);
+router.post('/billing', can('billing.manage'), billingController.createSchedule);
+router.post('/billing/:id/trigger', can('billing.pay'), billingController.triggerPayment);
+router.post('/billing/:id/deactivate', can('billing.pay'), billingController.deactivateSchedule);
 
 // ── PART 2: Payroll ──────────────────────────────────────────────────────────
-router.get('/payroll', payrollController.listPayroll);
-router.get('/payroll/new', authorize('admin','manager'), payrollController.showRunForm);
-router.post('/payroll', authorize('admin','manager'), payrollController.createRun);
-router.get('/payroll/:id', payrollController.showRun);
-router.post('/payroll/:id/approve', authorize('admin'), payrollController.approveRun);
+router.get('/payroll', can('payroll.view'), payrollController.listPayroll);
+router.get('/payroll/new', can('payroll.manage'), payrollController.showRunForm);
+router.post('/payroll', can('payroll.manage'), payrollController.createRun);
+router.get('/payroll/:id', can('payroll.view'), payrollController.showRun);
+router.post('/payroll/:id/approve', can('payroll.approve'), payrollController.approveRun);
 
 // ── PART 2: Tax ──────────────────────────────────────────────────────────────
-router.get('/tax', taxController.listTax);
-router.post('/tax', authorize('admin','manager'), taxController.createTaxRecord);
-router.post('/tax/:id/paid', authorize('admin'), taxController.markPaid);
+router.get('/tax', can('tax.view'), taxController.listTax);
+router.post('/tax', can('tax.manage'), taxController.createTaxRecord);
+router.post('/tax/:id/paid', can('tax.pay'), taxController.markPaid);
 
 // ── PART 3: Analytics ────────────────────────────────────────────────────────
-router.get('/analytics', analyticsController.showAnalytics);
+router.get('/analytics', can('reports.view'), analyticsController.showAnalytics);
 
 // ── PART 3: Forecast (Predictive) ──────────────────────────────────────
-router.get('/forecast', forecastController.showForecast);
-router.get('/api/forecast', forecastController.apiForecast);
+router.get('/forecast', can('reports.view'), forecastController.showForecast);
+router.get('/api/forecast', can('reports.view'), forecastController.apiForecast);
 
 // ── PART 3: Savings ──────────────────────────────────────────────────────────
-router.get('/savings', savingsController.listSavings);
-router.post('/savings/compute', savingsController.computeAllocation);
-router.post('/savings/:id/transfer', savingsController.markTransferred);
+router.get('/savings', can('savings.view'), savingsController.listSavings);
+router.post('/savings/compute', can('savings.manage'), savingsController.computeAllocation);
+router.post('/savings/:id/transfer', can('savings.manage'), savingsController.markTransferred);
 
 // ── PART 3: Statements & Search ──────────────────────────────────────────────
-router.get('/statements', statementsController.listStatements);
-router.get('/statements/pl', statementsController.downloadPL);
-router.get('/statements/payroll/:id', statementsController.downloadPayslips);
-router.get('/search', statementsController.search);
+router.get('/statements', can('reports.view'), statementsController.listStatements);
+router.get('/statements/pl', can('reports.view'), statementsController.downloadPL);
+router.get('/statements/payroll/:id', can('payroll.view'), statementsController.downloadPayslips);
+router.get('/search', can('reports.view'), statementsController.search);
 
 // ── PART 4: Settings ─────────────────────────────────────────────────────────
-router.get('/settings', authorize('admin','manager'), settingsController.showSettings);
-router.post('/settings/business', authorize('admin'), settingsController.updateBusiness);
-router.post('/settings/invite', authorize('admin'), settingsController.inviteUser);
-router.post('/settings/users/:id/toggle', authorize('admin'), settingsController.toggleUser);
+router.get('/settings', can('settings.view'), settingsController.showSettings);
+router.post('/settings/business', can('settings.business'), settingsController.updateBusiness);
+router.post('/settings/invite', can('users.manage'), settingsController.inviteUser);
+router.post('/settings/users/:id/toggle', can('users.manage'), settingsController.toggleUser);
 router.post('/settings/password', settingsController.updatePassword);
-router.get('/settings/activity', authorize('admin'), activityController.listActivity);
+router.get('/settings/activity', can('activity.view'), activityController.listActivity);
 
 // 404
 router.use((req, res) =>
