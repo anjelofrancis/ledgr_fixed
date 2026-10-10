@@ -1,6 +1,7 @@
 const { query, getClient } = require('../../config/database');
 const { validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
+const { logAudit } = require('../utils/audit');
 
 // Render the historical sales page
 const listSales = async (req, res) => {
@@ -155,6 +156,13 @@ const checkoutAPI = async (req, res) => {
         [uuidv4(), businessId, userId, totalAmount, `POS Sale - ${receiptNumber}`, paymentMethod, `/sales/${saleId}/receipt`]
       );
 
+      await logAudit(req, {
+        action: 'sale.create', entityType: 'sale', entityId: saleId, client,
+        newValues: {
+          receiptNumber, totalAmount, paymentMethod, customerId,
+          items: cart.map(i => ({ id: i.id, name: i.name, quantity: i.cartQuantity, price: i.sell_price })),
+        },
+      });
       await client.query('COMMIT');
       res.json({ success: true, saleId, receiptNumber });
     } catch (err) {

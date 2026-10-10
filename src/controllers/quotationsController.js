@@ -1,5 +1,6 @@
 const { query, getClient } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
+const { logAudit } = require('../utils/audit');
 
 // ── INTERNAL DASHBOARD VIEWS ─────────────────────────────────────────────────
 
@@ -141,6 +142,11 @@ const saveQuotationAPI = async (req, res) => {
       );
     }
 
+    await logAudit(req, {
+      action: id ? 'quotation.update' : 'quotation.create', entityType: 'quotation', entityId: quotationId, client,
+      newValues: { customerName, customerEmail, totalAmount, validUntil, itemCount: items.length },
+    });
+
     // Insert new items
     for (const item of items) {
       await client.query(
@@ -165,7 +171,14 @@ const updateStatusAPI = async (req, res) => {
   const businessId = req.user.business_id;
   const { status } = req.body;
   try {
+    const before = await query('SELECT status FROM quotations WHERE id = $1 AND business_id = $2', [req.params.id, businessId]);
     await query(`UPDATE quotations SET status = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3`, [status, req.params.id, businessId]);
+    if (before.rows.length) {
+      await logAudit(req, {
+        action: 'quotation.status', entityType: 'quotation', entityId: req.params.id,
+        oldValues: { status: before.rows[0].status }, newValues: { status },
+      });
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update status' });
@@ -243,6 +256,10 @@ const convertToSaleAPI = async (req, res) => {
 
     // 5. Update quote status
     await client.query(`UPDATE quotations SET status = 'converted', updated_at = NOW() WHERE id = $1`, [quotationId]);
+    await logAudit(req, {
+      action: 'quotation.convert', entityType: 'quotation', entityId: quotationId, client,
+      oldValues: { status: quote.status }, newValues: { status: 'converted', saleId, receiptNumber, total: quote.total_amount },
+    });
 
     await client.query('COMMIT');
     res.json({ success: true, saleId });
@@ -291,10 +308,14 @@ const publicQuoteAction = async (req, res) => {
   try {
     const result = await query(
       `UPDATE quotations SET status = $1, updated_at = NOW() 
-       WHERE public_token = $2 AND status IN ('draft', 'sent') RETURNING id`,
+       WHERE public_token = $2 AND status IN ('draft', 'sent') RETURNING id, business_id`,
       [action, req.params.token]
     );
     if (result.rowCount === 0) return res.status(400).json({ error: 'Quote cannot be modified' });
+    await logAudit(req, {
+      action: `quotation.customer_${action}`, entityType: 'quotation', entityId: result.rows[0].id,
+      newValues: { status: action, via: 'public_link' }, businessId: result.rows[0].business_id, userId: null,
+    });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update quote' });

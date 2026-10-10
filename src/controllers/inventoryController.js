@@ -1,6 +1,7 @@
 const { query, getClient } = require('../../config/database');
 const { validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
+const { logAudit } = require('../utils/audit');
 
 const listItems = async (req, res) => {
   const { search, category } = req.query;
@@ -136,6 +137,10 @@ const createItem = async (req, res) => {
         );
       }
 
+      await logAudit(req, {
+        action: 'inventory.create', entityType: 'inventory_item', entityId: itemId, client,
+        newValues: { name, sku, quantity: parsedQuantity, costPrice, sellPrice },
+      });
       await client.query('COMMIT');
       res.redirect('/inventory?success=1');
     } catch (err) {
@@ -235,17 +240,24 @@ const updateItem = async (req, res) => {
   const { name, sku, categoryId, description, costPrice, sellPrice, currency, reorderLevel, supplier, location } = req.body;
   
   try {
-    await query(
+    const before = await query('SELECT * FROM inventory_items WHERE id = $1 AND business_id = $2', [req.params.id, businessId]);
+    const after = await query(
       `UPDATE inventory_items 
        SET name = $1, sku = $2, category_id = $3, description = $4, cost_price = $5, sell_price = $6, 
            currency = $7, reorder_level = $8, supplier = $9, location = $10, updated_at = NOW()
-       WHERE id = $11 AND business_id = $12`,
+       WHERE id = $11 AND business_id = $12 RETURNING *`,
       [
         name, sku || null, categoryId || null, description || null, parseFloat(costPrice) || 0, parseFloat(sellPrice) || 0,
         currency || 'KES', parseInt(reorderLevel, 10) || 5, supplier || null, location || null,
         req.params.id, businessId
       ]
     );
+    if (after.rows.length) {
+      await logAudit(req, {
+        action: 'inventory.update', entityType: 'inventory_item', entityId: req.params.id,
+        oldValues: before.rows[0], newValues: after.rows[0],
+      });
+    }
     res.redirect(`/inventory/${req.params.id}?updated=1`);
   } catch (err) {
     console.error('Update item error:', err);
@@ -315,6 +327,11 @@ const adjustStock = async (req, res) => {
         [uuidv4(), businessId, itemId, req.user.id, type, quantityChange, quantityAfter, reference || null, notes || null]
       );
 
+      await logAudit(req, {
+        action: 'inventory.adjust', entityType: 'inventory_item', entityId: itemId, client,
+        oldValues: { quantity: currentQuantity },
+        newValues: { quantity: quantityAfter, type, quantityChange, reference: reference || null, notes: notes || null },
+      });
       await client.query('COMMIT');
       res.redirect(`/inventory/${itemId}?adjusted=1`);
     } catch (err) {
