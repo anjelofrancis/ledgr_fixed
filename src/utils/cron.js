@@ -29,11 +29,12 @@ async function processDueBills() {
       console.log(`[CRON] Triggering payment: ${bill.name} — KES ${bill.amount}`);
       // Import billingController dynamically to avoid circular deps
       // In production: use a queue (BullMQ, etc.)
+      // At most one live payment per due date (unique index), so hourly runs don't pile up duplicates
       await query(
-        `INSERT INTO billing_transactions (id, business_id, schedule_id, amount, status)
-         VALUES (gen_random_uuid(), $1, $2, $3, 'pending')
+        `INSERT INTO billing_transactions (id, business_id, schedule_id, amount, status, due_date)
+         VALUES (gen_random_uuid(), $1, $2, $3, 'pending', $4)
          ON CONFLICT DO NOTHING`,
-        [bill.business_id, bill.id, bill.amount]
+        [bill.business_id, bill.id, bill.amount, bill.next_due_date]
       );
     }
   } catch (err) {

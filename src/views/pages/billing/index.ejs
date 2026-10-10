@@ -8,6 +8,7 @@
     <div class="topbar-left"><button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button><div><h1 class="page-title">Billing</h1><p class="page-sub">Automated M-Pesa payments</p></div></div>
     <% if(can('billing.manage')){ %><a href="/billing/new" class="btn-add"><i class="fas fa-plus"></i> Add Schedule</a><% } %>
   </div>
+  <% if (notice) { %><div style="margin:1rem 2rem 0;padding:10px 14px;background:#fff8e1;color:#7a5400;border-radius:8px;font-size:13px"><%= notice %></div><% } %>
   <div style="padding:1.5rem 2rem 0"><h2 style="font-size:14px;font-weight:600;margin-bottom:12px">Payment schedules</h2>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:2rem">
   <% schedules.forEach(s => { %>

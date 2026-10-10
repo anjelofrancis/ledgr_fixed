@@ -77,6 +77,7 @@ const listBilling = async (req, res) => {
     title: 'Billing — LEDGR',
     schedules: schedules.rows,
     transactions: recent.rows,
+    notice: req.query.inprogress ? 'That bill already has a payment in progress or paid for its current due date.' : null,
   });
 };
 
@@ -114,13 +115,21 @@ const triggerPayment = async (req, res) => {
   if (!schedule.rows.length) return res.redirect('/billing');
 
   const s = schedule.rows[0];
-  const txId = uuidv4();
 
-  await query(
-    `INSERT INTO billing_transactions (id, business_id, schedule_id, amount, status)
-     VALUES ($1,$2,$3,$4,'processing')`,
-    [txId, req.user.business_id, id, s.amount]
+  // One live payment per due date: take over a queued one, or refuse if it's already in flight or paid
+  const inserted = await query(
+    `INSERT INTO billing_transactions (id, business_id, schedule_id, amount, status, due_date)
+     VALUES ($1,$2,$3,$4,'processing',$5) ON CONFLICT DO NOTHING RETURNING id`,
+    [uuidv4(), req.user.business_id, id, s.amount, s.next_due_date]
   );
+  const claimed = inserted.rows.length ? inserted : await query(
+    `UPDATE billing_transactions SET status = 'processing', initiated_at = NOW()
+     WHERE schedule_id = $1 AND due_date = $2 AND status = 'pending' RETURNING id`,
+    [id, s.next_due_date]
+  );
+  if (!claimed.rows.length) return res.redirect('/billing?inprogress=1');
+  const txId = claimed.rows[0].id;
+
   await logAudit(req, {
     action: 'billing.payment_trigger', entityType: 'billing_schedule', entityId: id,
     newValues: { transactionId: txId, amount: s.amount, payee: s.payee_number },
@@ -198,6 +207,11 @@ const deactivateSchedule = async (req, res) => {
     [req.params.id, req.user.business_id]
   );
   if (result.rows.length) {
+    await query(
+      `UPDATE billing_transactions SET status = 'cancelled', completed_at = NOW(), error_message = 'Bill schedule was stopped'
+       WHERE schedule_id = $1 AND status = 'pending'`,
+      [req.params.id]
+    );
     await logAudit(req, {
       action: 'billing.schedule_deactivate', entityType: 'billing_schedule', entityId: req.params.id,
       oldValues: { is_active: true }, newValues: { is_active: false, ...result.rows[0] },
