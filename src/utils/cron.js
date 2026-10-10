@@ -5,6 +5,8 @@
 const { query } = require('../../config/database');
 const { notifyBillingReminder } = require('./notifications');
 const { getEntitlements } = require('./entitlements');
+const { payBill } = require('./billPayments');
+const { logAudit } = require('./audit');
 
 // Simple interval-based scheduler (use node-cron in production)
 const MINUTE = 60 * 1000;
@@ -25,17 +27,20 @@ async function processDueBills() {
     );
 
     for (const bill of due.rows) {
-      if (!(await getEntitlements(bill.business_id)).has('automated_billing')) continue;
-      console.log(`[CRON] Triggering payment: ${bill.name} — KES ${bill.amount}`);
-      // Import billingController dynamically to avoid circular deps
-      // In production: use a queue (BullMQ, etc.)
-      // At most one live payment per due date (unique index), so hourly runs don't pile up duplicates
-      await query(
-        `INSERT INTO billing_transactions (id, business_id, schedule_id, amount, status, due_date)
-         VALUES (gen_random_uuid(), $1, $2, $3, 'pending', $4)
-         ON CONFLICT DO NOTHING`,
-        [bill.business_id, bill.id, bill.amount, bill.next_due_date]
-      );
+      try {
+        if (!(await getEntitlements(bill.business_id)).has('automated_billing')) continue;
+        // payBill claims the one live payment for this due date, so an in-flight or paid bill is skipped
+        const result = await payBill(bill);
+        if (result.status === 'busy') continue;
+        console.log(`[CRON] ${bill.name} — KES ${bill.amount}: ${result.status}${result.error ? ` (${result.error})` : ''}`);
+        await logAudit(null, {
+          action: 'billing.payment_auto', entityType: 'billing_schedule', entityId: bill.id,
+          businessId: bill.business_id, userId: null,
+          newValues: { transactionId: result.transactionId, amount: bill.amount, dueDate: bill.next_due_date, result: result.status, error: result.error },
+        });
+      } catch (err) {
+        console.error(`[CRON] Bill ${bill.id} error:`, err.message);
+      }
     }
   } catch (err) {
     console.error('[CRON] Due bills error:', err.message);
