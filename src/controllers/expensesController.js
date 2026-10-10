@@ -1,6 +1,7 @@
 const { query } = require('../../config/database');
 const { validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
+const { logAudit } = require('../utils/audit');
 
 const listExpenses = async (req, res) => {
   const { month, year, type } = req.query;
@@ -73,13 +74,14 @@ const createExpense = async (req, res) => {
     });
   }
   const { date, amount, description, categoryId, vendor, paymentMethod, isPaid } = req.body;
-  await query(
+  const created = await query(
     `INSERT INTO expenses (id, business_id, category_id, recorded_by, date, amount, description, vendor, payment_method, is_paid)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
     [uuidv4(), req.user.business_id, categoryId || null, req.user.id,
      date, parseFloat(amount), description, vendor || null,
      paymentMethod || 'cash', isPaid === 'on']
   );
+  await logAudit(req, { action: 'expense.create', entityType: 'expense', entityId: created.rows[0].id, newValues: created.rows[0] });
   res.redirect('/expenses?success=1');
 };
 

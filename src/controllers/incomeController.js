@@ -1,6 +1,7 @@
 const { query } = require('../../config/database');
 const { validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
+const { logAudit } = require('../utils/audit');
 
 // GET /income
 const listIncome = async (req, res) => {
@@ -82,12 +83,13 @@ const createIncome = async (req, res) => {
   }
   const { date, amount, source, description, paymentMode, mpesaRef } = req.body;
   try {
-    await query(
+    const created = await query(
       `INSERT INTO income_records (id, business_id, recorded_by, date, amount, source, description, payment_mode, mpesa_ref)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [uuidv4(), req.user.business_id, req.user.id, date, parseFloat(amount),
        source || 'daily_sales', description || null, paymentMode || 'cash', mpesaRef || null]
     );
+    await logAudit(req, { action: 'income.create', entityType: 'income_record', entityId: created.rows[0].id, newValues: created.rows[0] });
     res.redirect('/income?success=1');
   } catch (err) {
     console.error('Income create error:', err);
