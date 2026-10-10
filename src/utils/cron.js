@@ -138,15 +138,20 @@ async function sendBillingReminders() {
   }
 }
 
-// Monthly savings computation — runs on 1st of each month
-async function computeMonthlySavings() {
-  const now = new Date();
-  if (now.getDate() !== 1) return;
-  const lastMonth = now.getMonth() === 0 ? 12 : now.getMonth();
-  const lastYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+// Monthly savings for last month — runs daily, so a missed 1st is caught up the next day.
+// Only businesses without an allocation for last month are computed.
+async function computeMonthlySavings(now = new Date()) {
+  const [year, month] = localClock(now).date.split('-').map(Number);
+  const lastMonth = month === 1 ? 12 : month - 1;
+  const lastYear = month === 1 ? year - 1 : year;
 
   try {
-    const businesses = await query('SELECT id, savings_rate FROM businesses');
+    const businesses = await query(
+      `SELECT b.id, b.savings_rate FROM businesses b
+       WHERE NOT EXISTS (SELECT 1 FROM savings_allocations sa
+                         WHERE sa.business_id = b.id AND sa.period_month = $1 AND sa.period_year = $2)`,
+      [lastMonth, lastYear]
+    );
     for (const biz of businesses.rows) {
       const [income, expenses] = await Promise.all([
         query(
@@ -180,7 +185,7 @@ const TIME_ZONE = 'Africa/Nairobi';
 const DAILY_HOUR = 8;
 const DAILY_JOBS = {
   billing_reminders: () => sendBillingReminders(),
-  monthly_savings: () => computeMonthlySavings(),
+  monthly_savings: (now) => computeMonthlySavings(now),
 };
 
 const localClock = (now) => {
@@ -202,7 +207,7 @@ async function runDailyJobs(now = new Date()) {
       );
       if (!claimed.rows.length) continue;
       console.log(`[CRON] Running daily job ${job} for ${date}`);
-      await run();
+      await run(now);
     } catch (err) {
       console.error(`[CRON] Daily job ${job} error:`, err.message);
     }
