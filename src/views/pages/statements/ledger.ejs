@@ -1,0 +1,92 @@
+<%- include('../../partials/head') %>
+<link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body class="app-body">
+<%- include('../../partials/sidebar') %>
+<% const money = (n) => formatCurrency(n, user.currency); %>
+<main class="main-content">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div><h1 class="page-title">General ledger</h1>
+      <p class="page-sub">Trial balance <%= formatDate(filters.from) %> – <%= formatDate(filters.to) %></p></div>
+    </div>
+    <form method="GET" action="/statements/ledger" style="display:flex;gap:6px;align-items:center;margin:0">
+      <input type="date" name="from" value="<%= filters.from %>" style="font-size:12px;padding:5px 8px;border:1px solid #ddd;border-radius:6px">
+      <input type="date" name="to" value="<%= filters.to %>" style="font-size:12px;padding:5px 8px;border:1px solid #ddd;border-radius:6px">
+      <button type="submit" class="btn-add">Apply</button>
+    </form>
+  </div>
+
+  <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+    <div class="stat-card" style="background:#fff">
+      <div class="stat-icon" style="background:<%= balanced ? '#e0f7ef' : '#fce8e9' %>;color:<%= balanced ? '#00b87f' : '#dc3545' %>"><i class="fas <%= balanced ? 'fa-scale-balanced' : 'fa-triangle-exclamation' %>"></i></div>
+      <div class="stat-body">
+        <span class="stat-label">Debits vs credits</span>
+        <span class="stat-val"><%= balanced ? 'Balanced' : 'Out of balance' %></span>
+        <span class="stat-sub"><%= money(totals.debit) %> each side</span>
+      </div>
+    </div>
+    <div class="stat-card income">
+      <div class="stat-icon"><i class="fas fa-sack-dollar"></i></div>
+      <div class="stat-body">
+        <span class="stat-label">Net profit (ledger)</span>
+        <span class="stat-val"><%= money(netProfit) %></span>
+        <span class="stat-sub">Income minus expenses</span>
+      </div>
+    </div>
+    <div class="stat-card" style="background:#fff">
+      <div class="stat-icon" style="background:#EEEDFE;color:#6f42c1"><i class="fas fa-book"></i></div>
+      <div class="stat-body">
+        <span class="stat-label">Journal entries</span>
+        <span class="stat-val"><%= entries.length %><%= entries.length === 30 ? '+' : '' %></span>
+        <span class="stat-sub">In this period</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:0 2rem 2rem;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+    <div class="dash-card">
+      <div class="card-header"><h2>Trial balance</h2></div>
+      <table class="data-table">
+        <thead><tr><th>Account</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th></tr></thead>
+        <tbody>
+        <% accounts.forEach(a => { if (!a.debit && !a.credit) return; %>
+        <tr>
+          <td><span style="color:#999;font-size:12px"><%= a.code %></span> <%= a.name %><br><span style="font-size:11px;color:#aaa"><%= a.type %></span></td>
+          <td class="right"><%= a.debit ? money(a.debit) : '' %></td>
+          <td class="right"><%= a.credit ? money(a.credit) : '' %></td>
+          <td class="right" style="font-weight:600;color:<%= a.balance < 0 ? '#dc3545' : 'inherit' %>"><%= money(a.balance) %></td>
+        </tr>
+        <% }) %>
+        <tr style="font-weight:700;border-top:2px solid #0d0d0d">
+          <td>Total</td><td class="right"><%= money(totals.debit) %></td><td class="right"><%= money(totals.credit) %></td><td></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="dash-card">
+      <div class="card-header"><h2>Recent journal entries</h2></div>
+      <% if (entries.length === 0) { %>
+      <div class="empty-state"><i class="fas fa-book-open"></i><p>No journal entries in this period.</p></div>
+      <% } %>
+      <% entries.forEach(e => { %>
+      <div style="padding:12px 18px;border-bottom:1px solid rgba(0,0,0,0.04);font-size:13px">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <strong style="font-weight:500"><% if (e.reverses_entry_id) { %><span class="badge" style="background:#fce8e9;color:#9c1c1c">Reversal</span> <% } %><%= e.description %></strong>
+          <span style="color:#888;white-space:nowrap"><%= formatDate(e.entry_date) %></span>
+        </div>
+        <% e.lines.forEach(l => { %>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#555;padding-left:<%= Number(l.credit) ? '24px' : '0' %>">
+          <span><%= l.code %> <%= l.name %></span>
+          <span><%= Number(l.debit) ? 'Dr ' + money(l.debit) : 'Cr ' + money(l.credit) %></span>
+        </div>
+        <% }) %>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+</main>
+<script src="/js/dashboard.js"></script>
+</body></html>

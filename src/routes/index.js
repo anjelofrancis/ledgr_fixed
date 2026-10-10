@@ -21,6 +21,7 @@ const salesController = require('../controllers/salesController');
 const quotationsController = require('../controllers/quotationsController');
 const activityController = require('../controllers/activityController');
 const planController = require('../controllers/planController');
+const ledgerController = require('../controllers/ledgerController');
 
 const router = express.Router();
 
@@ -179,6 +180,7 @@ router.post('/savings/:id/transfer', can('savings.manage'), savingsController.ma
 // ── PART 3: Statements & Search ──────────────────────────────────────────────
 router.get('/statements', can('reports.view'), statementsController.listStatements);
 router.get('/statements/pl', can('reports.view'), statementsController.downloadPL);
+router.get('/statements/ledger', can('reports.view'), ledgerController.showLedger);
 router.get('/statements/payroll/:id', can('payroll.view'), statementsController.downloadPayslips);
 router.get('/search', can('reports.view'), statementsController.search);
 
