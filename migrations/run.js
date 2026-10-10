@@ -3,28 +3,36 @@ const fs = require('fs');
 const path = require('path');
 const { pool } = require('../config/database');
 
+// Base module schemas, applied in dependency order.
+const BASE_FILES = [
+  ['schema.sql', 'Schema'],
+  ['inventory.sql', 'Inventory schema'],
+  ['sales.sql', 'Sales & POS schema'],
+  ['quotations.sql', 'Quotations schema'],
+];
+
+// Incremental migrations: any file named like "01_description.sql", run in numeric order.
+// Every migration must be idempotent (IF NOT EXISTS, etc.) since all files run on each invocation.
+const numberedFiles = () =>
+  fs.readdirSync(__dirname)
+    .filter(f => /^\d+_.*\.sql$/.test(f))
+    .sort((a, b) => parseInt(a, 10) - parseInt(b, 10) || a.localeCompare(b));
+
 async function runMigrations() {
   const client = await pool.connect();
   try {
     console.log('🔄 Running LEDGR database migrations...');
-    const schemaSQL = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-    await client.query(schemaSQL);
-    console.log('✅ Schema migration complete');
-
-    const inventorySQL = fs.readFileSync(path.join(__dirname, 'inventory.sql'), 'utf8');
-    await client.query(inventorySQL);
-    console.log('✅ Inventory schema migration complete');
-
-    const salesSQL = fs.readFileSync(path.join(__dirname, 'sales.sql'), 'utf8');
-    await client.query(salesSQL);
-    console.log('✅ Sales & POS schema migration complete');
-
-    const quotationsSQL = fs.readFileSync(path.join(__dirname, 'quotations.sql'), 'utf8');
-    await client.query(quotationsSQL);
-    console.log('✅ Quotations schema migration complete');
+    for (const [file, label] of BASE_FILES) {
+      await client.query(fs.readFileSync(path.join(__dirname, file), 'utf8'));
+      console.log(`✅ ${label} migration complete`);
+    }
+    for (const file of numberedFiles()) {
+      await client.query(fs.readFileSync(path.join(__dirname, file), 'utf8'));
+      console.log(`✅ ${file} applied`);
+    }
   } catch (err) {
     console.error('❌ Migration failed:', err.message);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     client.release();
     await pool.end();
