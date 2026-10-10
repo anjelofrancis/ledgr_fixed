@@ -175,22 +175,50 @@ async function computeMonthlySavings() {
   }
 }
 
+// Daily jobs run once per Nairobi calendar day, on the first hourly tick at or after 8am.
+const TIME_ZONE = 'Africa/Nairobi';
+const DAILY_HOUR = 8;
+const DAILY_JOBS = {
+  billing_reminders: () => sendBillingReminders(),
+  monthly_savings: () => computeMonthlySavings(),
+};
+
+const localClock = (now) => {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
+  }).formatToParts(now).map(p => [p.type, p.value]));
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: parseInt(parts.hour, 10) };
+};
+
+// Claims today's slot in job_runs before running, so restarts and overlapping ticks can't run a job twice
+async function runDailyJobs(now = new Date()) {
+  const { date, hour } = localClock(now);
+  if (hour < DAILY_HOUR) return;
+  for (const [job, run] of Object.entries(DAILY_JOBS)) {
+    try {
+      const claimed = await query(
+        'INSERT INTO job_runs (job, run_on) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING job',
+        [job, date]
+      );
+      if (!claimed.rows.length) continue;
+      console.log(`[CRON] Running daily job ${job} for ${date}`);
+      await run();
+    } catch (err) {
+      console.error(`[CRON] Daily job ${job} error:`, err.message);
+    }
+  }
+}
+
+async function tick() {
+  await processDueBills();
+  await runDailyJobs();
+}
+
 // Start schedulers
 if (require.main === module) {
   console.log('🕐 LEDGR Cron service started');
-  processDueBills();
-  setInterval(processDueBills, HOUR);
-
-  const now = new Date();
-  const msUntil8am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0, 0) - now;
-  setTimeout(() => {
-    sendBillingReminders();
-    computeMonthlySavings();
-    setInterval(() => {
-      sendBillingReminders();
-      computeMonthlySavings();
-    }, 24 * HOUR);
-  }, msUntil8am > 0 ? msUntil8am : 0);
+  tick();
+  setInterval(tick, HOUR);
 }
 
-module.exports = { processDueBills, expireStalePayments, sendBillingReminders, computeMonthlySavings };
+module.exports = { processDueBills, expireStalePayments, sendBillingReminders, computeMonthlySavings, runDailyJobs };
