@@ -41,7 +41,7 @@
     <tr>
       <td><%= t.schedule_name || 'Manual' %></td>
       <td><%= formatCurrency(t.amount, user.currency) %></td>
-      <td><span style="font-size:11px;padding:2px 8px;border-radius:20px;background:<%= t.status==='completed'?'#e0f7ef':t.status==='failed'?'#fce8e9':'#fff8e1' %>;color:<%= t.status==='completed'?'#0d5c3d':t.status==='failed'?'#9c1c1c':'#7a5400' %>"><%= t.status %></span></td>
+      <td><span style="font-size:11px;padding:2px 8px;border-radius:20px;background:<%= t.status==='completed'?'#e0f7ef':t.status==='failed'?'#fce8e9':t.status==='cancelled'?'#f0f0ec':'#fff8e1' %>;color:<%= t.status==='completed'?'#0d5c3d':t.status==='failed'?'#9c1c1c':t.status==='cancelled'?'#777':'#7a5400' %>"><%= t.status %></span></td>
       <td style="font-size:12px;color:#888"><%= t.mpesa_ref || '—' %></td>
       <td style="font-size:12px"><%= formatDate(t.initiated_at) %></td>
     </tr>
