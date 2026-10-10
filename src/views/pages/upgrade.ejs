@@ -1,0 +1,30 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body class="app-body">
+<%- include('../partials/sidebar') %>
+<main class="main-content">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div><h1 class="page-title"><%= featureName %></h1></div>
+    </div>
+  </div>
+  <div style="padding:2rem;max-width:560px">
+    <div class="dash-card" style="padding:2rem;text-align:center">
+      <div style="font-size:36px;color:#6f42c1;margin-bottom:12px"><i class="fas fa-lock"></i></div>
+      <h2 style="font-size:18px;font-weight:600;margin-bottom:8px"><%= featureName %> is part of the <%= requiredPlan %> plan</h2>
+      <p style="font-size:14px;color:#666;margin-bottom:1.5rem">
+        Your business is on the <strong><%= currentPlan %></strong> plan<%= state === 'trial_ended' ? ' (your free trial has ended)' : '' %>.
+        Upgrade to unlock <%= featureName.toLowerCase() %>.
+      </p>
+      <% if (typeof can === 'function' && can('settings.view')) { %>
+      <a href="/settings/plan" class="btn-add" style="display:inline-flex">See plans</a>
+      <% } else { %>
+      <p style="font-size:13px;color:#888">Ask your business admin to upgrade.</p>
+      <% } %>
+    </div>
+  </div>
+</main>
+<script src="/js/dashboard.js"></script>
+</body></html>

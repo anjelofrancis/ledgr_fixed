@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { query } = require('../../config/database');
 const { resolvePermissions } = require('../../config/permissions');
+const { getEntitlements, getPlans } = require('../utils/entitlements');
 
 // Verify JWT from cookie or Authorization header
 const authenticate = async (req, res, next) => {
@@ -36,13 +37,19 @@ const authenticate = async (req, res, next) => {
     req.user = result.rows[0];
 
     // Effective permissions: role defaults + extra grants
-    const grants = await query('SELECT permission FROM user_permissions WHERE user_id = $1', [req.user.id]);
+    const [grants, entitlements] = await Promise.all([
+      query('SELECT permission FROM user_permissions WHERE user_id = $1', [req.user.id]),
+      getEntitlements(req.user.business_id),
+    ]);
     req.user.permissions = resolvePermissions(req.user.role, grants.rows.map(r => r.permission));
     req.user.can = (perm) => req.user.permissions.has(perm);
+    // What the business's subscription unlocks
+    req.entitlements = entitlements;
 
     // Make user available to all EJS templates
     res.locals.user = req.user;
     res.locals.can = req.user.can;
+    res.locals.entitlements = entitlements;
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
@@ -73,6 +80,30 @@ const requirePermission = (...perms) => (req, res, next) => {
   next();
 };
 
+const FEATURE_NAMES = {
+  pos: 'Inventory & Point of Sale',
+  automated_billing: 'Automated M-Pesa bill payments',
+  forecast: 'Forecasting',
+  api_access: 'API access',
+};
+
+// Subscription gate: the business's current plan must include the feature
+const requireFeature = (feature) => async (req, res, next) => {
+  if (req.entitlements?.has(feature)) return next();
+  if (!req.accepts('html')) {
+    return res.status(402).json({ success: false, message: `Your plan does not include ${FEATURE_NAMES[feature] || feature}`, upgrade: true });
+  }
+  // Cheapest public plan that includes it
+  const plans = Object.values(await getPlans()).filter(p => p.is_public && (p.features || []).includes(feature));
+  res.status(402).render('pages/upgrade', {
+    title: 'Upgrade — LEDGR',
+    featureName: FEATURE_NAMES[feature] || feature,
+    requiredPlan: plans[0]?.name || 'a paid',
+    currentPlan: req.entitlements?.plan?.name || 'Free',
+    state: req.entitlements?.state,
+  });
+};
+
 // Optional auth — attach user if token exists, don't block if not
 const optionalAuth = async (req, res, next) => {
   try {
@@ -92,4 +123,4 @@ const optionalAuth = async (req, res, next) => {
   next();
 };
 
-module.exports = { authenticate, requirePermission, optionalAuth };
+module.exports = { authenticate, requirePermission, requireFeature, optionalAuth };
