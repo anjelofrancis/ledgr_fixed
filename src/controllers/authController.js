@@ -110,6 +110,13 @@ const register = async (req, res) => {
       [uuidv4(), businessId, firstName, lastName, email, hash]
     );
 
+    // Every new business starts on a 14-day Pro trial (see landing page pricing)
+    await client.query(
+      `INSERT INTO subscriptions (business_id, plan_code, status, trial_ends_at)
+       VALUES ($1, 'pro', 'trialing', NOW() + INTERVAL '14 days')`,
+      [businessId]
+    );
+
     await logAudit(req, {
       action: 'business.register', entityType: 'business', entityId: businessId,
       newValues: { businessName, businessType, email, hasPos: hasPos === 'true' },
