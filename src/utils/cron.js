@@ -12,12 +12,36 @@ const { logAudit } = require('./audit');
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
 
+// M-Pesa prompts expire within minutes; a payment with no callback after this long never went through.
+const STALE_PAYMENT_HOURS = 2;
+
+// Fail payments M-Pesa never confirmed, so they stop blocking a retry for that due date
+async function expireStalePayments() {
+  const stale = await query(
+    `UPDATE billing_transactions
+     SET status = 'failed', completed_at = NOW(), error_message = 'No confirmation from M-Pesa'
+     WHERE status = 'processing' AND initiated_at < NOW() - make_interval(hours => $1)
+     RETURNING id, business_id, schedule_id, amount`,
+    [STALE_PAYMENT_HOURS]
+  );
+  for (const tx of stale.rows) {
+    console.log(`[CRON] Payment ${tx.id} expired without confirmation`);
+    await logAudit(null, {
+      action: 'billing.payment_failed', entityType: 'billing_transaction', entityId: tx.id,
+      businessId: tx.business_id, userId: null,
+      newValues: { amount: tx.amount, resultDesc: 'No confirmation from M-Pesa', via: 'timeout' },
+    });
+  }
+}
+
 // Check and trigger due bills — runs every hour
 async function processDueBills() {
   const today = new Date().toISOString().split('T')[0];
   console.log(`[CRON] Checking due bills for ${today}`);
 
   try {
+    await expireStalePayments();
+
     const due = await query(
       `SELECT bs.*, b.email AS business_email, b.name AS business_name
        FROM billing_schedules bs
@@ -134,4 +158,4 @@ if (require.main === module) {
   }, msUntil8am > 0 ? msUntil8am : 0);
 }
 
-module.exports = { processDueBills, sendBillingReminders, computeMonthlySavings };
+module.exports = { processDueBills, expireStalePayments, sendBillingReminders, computeMonthlySavings };
