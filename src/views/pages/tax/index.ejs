@@ -143,7 +143,7 @@
             <% if(r.is_paid){ %>
             <span style="font-size:11px;color:#00b87f">✅ Paid</span>
             <% } else { %>
-            <% if(user.role==='admin'){ %>
+            <% if(can('tax.pay')){ %>
             <form action="/tax/<%= r.id %>/paid" method="POST" style="margin:0">
               <button type="submit" style="background:none;border:1px solid #ddd;padding:3px 8px;border-radius:5px;font-size:11px;cursor:pointer">Mark paid</button>
             </form>

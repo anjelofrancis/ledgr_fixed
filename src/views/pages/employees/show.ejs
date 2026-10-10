@@ -19,7 +19,7 @@
         color:<%= employee.is_active?'#0d5c3d':'#9c1c1c' %>">
         <%= employee.is_active ? 'Active' : 'Inactive' %>
       </span>
-      <% if(user.role==='admin'||user.role==='manager'){ %>
+      <% if(can('employees.manage')){ %>
       <a href="/employees/<%= employee.id %>/edit" class="btn-add">Edit</a>
       <% } %>
     </div>

@@ -162,8 +162,8 @@
         <div class="quick-actions">
           <a href="/income" class="qa-btn"><i class="fas fa-plus"></i> Record income</a>
           <a href="/expenses" class="qa-btn"><i class="fas fa-minus"></i> Log expense</a>
-          <a href="/employees/new" class="qa-btn"><i class="fas fa-user-plus"></i> Add employee</a>
-          <a href="/statements" class="qa-btn"><i class="fas fa-file-invoice"></i> Get report</a>
+          <% if(can('employees.manage')){ %><a href="/employees/new" class="qa-btn"><i class="fas fa-user-plus"></i> Add employee</a><% } %>
+          <% if(can('reports.view')){ %><a href="/statements" class="qa-btn"><i class="fas fa-file-invoice"></i> Get report</a><% } %>
         </div>
       </div>
     </div>

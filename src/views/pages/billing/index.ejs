@@ -6,7 +6,7 @@
 <main class="main-content">
   <div class="topbar">
     <div class="topbar-left"><button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button><div><h1 class="page-title">Billing</h1><p class="page-sub">Automated M-Pesa payments</p></div></div>
-    <a href="/billing/new" class="btn-add"><i class="fas fa-plus"></i> Add Schedule</a>
+    <% if(can('billing.manage')){ %><a href="/billing/new" class="btn-add"><i class="fas fa-plus"></i> Add Schedule</a><% } %>
   </div>
   <div style="padding:1.5rem 2rem 0"><h2 style="font-size:14px;font-weight:600;margin-bottom:12px">Payment schedules</h2>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:2rem">
@@ -23,7 +23,7 @@
     <div style="font-size:11px;color:#888">Due on day <%= s.billing_day %> · <%= s.payment_method %></div>
     <% if(s.next_due_date){ %><div style="font-size:11px;color:#555;margin-top:4px">Next: <%= new Date(s.next_due_date).toLocaleDateString('en-KE') %></div><% } %>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <% if(user.role==='admin'){ %>
+      <% if(can('billing.pay')){ %>
       <form action="/billing/<%= s.id %>/trigger" method="POST" style="margin:0"><button type="submit" style="background:#0d0d0d;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer">Pay Now</button></form>
       <form action="/billing/<%= s.id %>/deactivate" method="POST" onsubmit="return confirm('Stop this bill schedule? Past payments are kept.')" style="margin:0"><button type="submit" style="background:none;border:1px solid #ddd;color:#888;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer">Stop</button></form>
       <% } %>

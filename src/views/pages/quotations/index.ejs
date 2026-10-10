@@ -9,7 +9,7 @@
       <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
       <div><h1 class="page-title">Quotations & Estimates</h1></div>
     </div>
-    <a href="/quotations/new" class="btn-add"><i class="fas fa-plus"></i> New Quote</a>
+    <% if(can('quotations.manage')){ %><a href="/quotations/new" class="btn-add"><i class="fas fa-plus"></i> New Quote</a><% } %>
   </div>
 
   <div style="padding:2rem">

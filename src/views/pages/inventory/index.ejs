@@ -9,7 +9,7 @@
       <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
       <div><h1 class="page-title"><%= typeof title !== 'undefined' ? title : 'Inventory' %></h1></div>
     </div>
-    <a href="/inventory/new" class="btn-add"><i class="fas fa-plus"></i> Add Product</a>
+    <% if(can('inventory.manage')){ %><a href="/inventory/new" class="btn-add"><i class="fas fa-plus"></i> Add Product</a><% } %>
   </div>
 
 
@@ -55,8 +55,8 @@
             <% } %>
           </td>
           <td style="display:flex;gap:8px;align-items:center;">
-            <a href="/inventory/<%= item.id %>/edit" style="color:#888;font-size:12px"><i class="fas fa-pen"></i></a>
-            <% if(user && user.role === 'admin'){ %>
+            <% if(can('inventory.manage')){ %><a href="/inventory/<%= item.id %>/edit" style="color:#888;font-size:12px"><i class="fas fa-pen"></i></a><% } %>
+            <% if(can('inventory.archive')){ %>
             <form action="/inventory/<%= item.id %>/archive" method="POST" onsubmit="return confirm('Archive this product? It will be hidden from inventory and the POS, but its stock history is kept.')"><button type="submit" title="Archive" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:12px"><i class="fas fa-box-archive"></i></button></form>
             <% } %>
           </td>

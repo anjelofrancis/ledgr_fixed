@@ -13,7 +13,7 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
       <a href="/inventory" style="font-size:13px;color:#888;margin-right:1rem;">← Back</a>
-      <% if(user && (user.role === 'admin' || user.role === 'manager')){ %>
+      <% if(can('inventory.manage')){ %>
       <a href="/inventory/<%= item.id %>/edit" class="btn-add"><i class="fas fa-pen"></i> Edit</a>
       <% } %>
     </div>
@@ -66,6 +66,7 @@
         <span style="background:<%= statusBg %>;color:<%= statusColor %>;padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600"><%= statusText %></span>
       </div>
 
+      <% if(can('inventory.manage')){ %>
       <div style="border-top:1px solid #f0f0ec;padding-top:1.5rem">
         <h3 style="font-size:13px;font-weight:600;margin-bottom:1rem">Adjust Stock</h3>
         <form action="/inventory/<%= item.id %>/adjust" method="POST" class="auth-form">
@@ -88,6 +89,7 @@
           <button type="submit" class="btn-submit" style="width:100%">Record Adjustment</button>
         </form>
       </div>
+      <% } %>
     </div>
   </div>
 

@@ -4,81 +4,116 @@
     <span class="logo-text">LEDGR</span>
   </div>
 
+  <% const allowed = (...perms) => typeof can === 'function' && perms.some(p => can(p)); %>
   <nav class="sidebar-nav">
     <div class="nav-group">
       <span class="nav-label">Overview</span>
+      <% if (allowed('dashboard.view')) { %>
       <a href="/dashboard" class="nav-item <%= currentPath === '/dashboard' ? 'active' : '' %>">
         <i class="fas fa-chart-pie"></i> Dashboard
       </a>
+      <% } %>
       <a href="/" class="nav-item <%= currentPath === '/' ? 'active' : '' %>">
         <i class="fas fa-house"></i> Home page
       </a>
     </div>
 
+    <% if (allowed('income.view', 'expenses.view', 'quotations.view', 'inventory.view', 'pos.sell', 'sales.view', 'billing.view', 'payroll.view', 'tax.view')) { %>
     <div class="nav-group">
       <span class="nav-label">Finances</span>
+      <% if (allowed('income.view')) { %>
       <a href="/income" class="nav-item <%= currentPath.startsWith('/income') ? 'active' : '' %>">
         <i class="fas fa-arrow-trend-up"></i> Income
       </a>
+      <% } %>
+      <% if (allowed('expenses.view')) { %>
       <a href="/expenses" class="nav-item <%= currentPath.startsWith('/expenses') ? 'active' : '' %>">
         <i class="fas fa-arrow-trend-down"></i> Expenses
       </a>
+      <% } %>
+      <% if (allowed('quotations.view')) { %>
       <a href="/quotations" class="nav-item <%= currentPath.startsWith('/quotations') ? 'active' : '' %>">
         <i class="fas fa-file-invoice"></i> Quotations
       </a>
+      <% } %>
       <% if (user && user.has_pos) { %>
+      <% if (allowed('inventory.view')) { %>
       <a href="/inventory" class="nav-item <%= currentPath.startsWith('/inventory') ? 'active' : '' %>">
         <i class="fas fa-boxes-stacked"></i> Inventory
       </a>
-      <a href="/sales" class="nav-item <%= currentPath.startsWith('/sales') ? 'active' : '' %>">
+      <% } %>
+      <% if (allowed('pos.sell', 'sales.view')) { %>
+      <a href="<%= allowed('sales.view') ? '/sales' : '/sales/pos' %>" class="nav-item <%= currentPath.startsWith('/sales') ? 'active' : '' %>">
         <i class="fas fa-cash-register"></i> Sales & POS
       </a>
       <% } %>
+      <% } %>
+      <% if (allowed('billing.view')) { %>
       <a href="/billing" class="nav-item <%= currentPath.startsWith('/billing') ? 'active' : '' %>">
         <i class="fas fa-bolt"></i> Billing
       </a>
+      <% } %>
+      <% if (allowed('payroll.view')) { %>
       <a href="/payroll" class="nav-item <%= currentPath.startsWith('/payroll') ? 'active' : '' %>">
         <i class="fas fa-money-bill-wave"></i> Payroll
       </a>
+      <% } %>
+      <% if (allowed('tax.view')) { %>
       <a href="/tax" class="nav-item <%= currentPath.startsWith('/tax') ? 'active' : '' %>">
         <i class="fas fa-receipt"></i> Tax
       </a>
+      <% } %>
     </div>
+    <% } %>
 
+    <% if (allowed('reports.view', 'savings.view')) { %>
     <div class="nav-group">
       <span class="nav-label">Insights</span>
+      <% if (allowed('reports.view')) { %>
       <a href="/analytics" class="nav-item <%= currentPath.startsWith('/analytics') ? 'active' : '' %>">
         <i class="fas fa-chart-line"></i> Analytics
       </a>
       <a href="/forecast" class="nav-item <%= currentPath.startsWith('/forecast') ? 'active' : '' %>">
         <i class="fas fa-wand-magic-sparkles"></i> Forecast
       </a>
+      <% } %>
+      <% if (allowed('savings.view')) { %>
       <a href="/savings" class="nav-item <%= currentPath.startsWith('/savings') ? 'active' : '' %>">
         <i class="fas fa-piggy-bank"></i> Savings
       </a>
+      <% } %>
+      <% if (allowed('reports.view')) { %>
       <a href="/statements" class="nav-item <%= currentPath.startsWith('/statements') ? 'active' : '' %>">
         <i class="fas fa-file-invoice"></i> Statements
       </a>
+      <% } %>
     </div>
+    <% } %>
 
+    <% if (allowed('employees.view')) { %>
     <div class="nav-group">
       <span class="nav-label">People</span>
       <a href="/employees" class="nav-item <%= currentPath.startsWith('/employees') ? 'active' : '' %>">
         <i class="fas fa-users"></i> Employees
       </a>
     </div>
+    <% } %>
 
+    <% if (allowed('reports.view', 'settings.view')) { %>
     <div class="nav-group">
       <span class="nav-label">Tools</span>
+      <% if (allowed('reports.view')) { %>
       <a href="/search" class="nav-item <%= currentPath.startsWith('/search') ? 'active' : '' %>">
         <i class="fas fa-search"></i> Search
       </a>
-      <% if (user && (user.role === 'admin' || user.role === 'manager')) { %>
+      <% } %>
+      <% if (allowed('settings.view')) { %>
       <a href="/settings" class="nav-item <%= currentPath.startsWith('/settings') ? 'active' : '' %>">
         <i class="fas fa-gear"></i> Settings
       </a>
       <% } %>
     </div>
+    <% } %>
   </nav>
 
   <div class="sidebar-footer">

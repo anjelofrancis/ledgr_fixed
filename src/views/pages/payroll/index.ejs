@@ -5,7 +5,7 @@
 <%- include('../../partials/sidebar') %>
 <main class="main-content">
   <div class="topbar"><div class="topbar-left"><button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button><div><h1 class="page-title">Payroll</h1></div></div>
-    <a href="/payroll/new" class="btn-add"><i class="fas fa-plus"></i> Run Payroll</a>
+    <% if(can('payroll.manage')){ %><a href="/payroll/new" class="btn-add"><i class="fas fa-plus"></i> Run Payroll</a><% } %>
   </div>
   <div style="padding:1.5rem 2rem">
     <div class="dash-card">

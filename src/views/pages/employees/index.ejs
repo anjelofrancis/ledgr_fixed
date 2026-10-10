@@ -14,8 +14,8 @@
       </div>
     </div>
     <div style="display:flex;gap:8px">
-      <a href="/employees/departments" style="background:#f5f4f1;border:1px solid #e0deda;color:#555;padding:8px 14px;border-radius:6px;font-size:13px;text-decoration:none"><i class="fas fa-sitemap"></i> Departments</a>
-      <% if(user.role==='admin'||user.role==='manager'){ %>
+      <% if(can('employees.manage')){ %><a href="/employees/departments" style="background:#f5f4f1;border:1px solid #e0deda;color:#555;padding:8px 14px;border-radius:6px;font-size:13px;text-decoration:none"><i class="fas fa-sitemap"></i> Departments</a><% } %>
+      <% if(can('employees.manage')){ %>
       <a href="/employees/new" class="btn-add"><i class="fas fa-user-plus"></i> Add Employee</a>
       <% } %>
     </div>
@@ -71,7 +71,7 @@
       <div class="empty-state">
         <i class="fas fa-users"></i>
         <p>No employees found.</p>
-        <% if(user.role==='admin'||user.role==='manager'){ %>
+        <% if(can('employees.manage')){ %>
         <a href="/employees/new" class="btn-add-sm">Add first employee →</a>
         <% } %>
       </div>
