@@ -19,6 +19,7 @@ const chatController = require('../controllers/chatController');
 const inventoryController = require('../controllers/inventoryController');
 const salesController = require('../controllers/salesController');
 const quotationsController = require('../controllers/quotationsController');
+const activityController = require('../controllers/activityController');
 
 const router = express.Router();
 
@@ -182,6 +183,7 @@ router.post('/settings/business', authorize('admin'), settingsController.updateB
 router.post('/settings/invite', authorize('admin'), settingsController.inviteUser);
 router.post('/settings/users/:id/toggle', authorize('admin'), settingsController.toggleUser);
 router.post('/settings/password', settingsController.updatePassword);
+router.get('/settings/activity', authorize('admin'), activityController.listActivity);
 
 // 404
 router.use((req, res) =>

@@ -10,6 +10,9 @@
       <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
       <div><h1 class="page-title">Settings</h1></div>
     </div>
+    <% if (user.role === 'admin') { %>
+    <a href="/settings/activity" class="btn-add"><i class="fas fa-clock-rotate-left"></i> Activity log</a>
+    <% } %>
   </div>
 
   <% if(success){ %>

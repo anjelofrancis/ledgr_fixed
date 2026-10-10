@@ -1,0 +1,77 @@
+<%- include('../../partials/head') %>
+<link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body class="app-body">
+<%- include('../../partials/sidebar') %>
+<%
+  // Show only the fields that changed (or all new values for creates)
+  const changes = (oldV, newV) => {
+    if (!newV) return [];
+    const skip = ['id', 'business_id', 'created_at', 'updated_at', 'recorded_by'];
+    return Object.keys(newV)
+      .filter(k => !skip.includes(k))
+      .filter(k => !oldV || JSON.stringify(oldV[k]) !== JSON.stringify(newV[k]))
+      .slice(0, 6)
+      .map(k => ({ key: k, from: oldV ? oldV[k] : undefined, to: newV[k] }));
+  };
+  const fmt = v => v === null || v === undefined ? '—' : (typeof v === 'object' ? JSON.stringify(v) : String(v)).slice(0, 60);
+  const qs = (o) => new URLSearchParams(Object.entries({ area: filters.area, user: filters.user, ...o }).filter(([, v]) => v)).toString();
+%>
+<main class="main-content">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div><h1 class="page-title">Activity log</h1>
+      <p class="page-sub">Every sign-in, change and void in your business, newest first</p></div>
+    </div>
+    <a href="/settings" class="btn-add" style="background:#fff;color:#0d0d0d;border:1px solid #ddd"><i class="fas fa-arrow-left"></i> Settings</a>
+  </div>
+
+  <div style="padding:0 2rem 2rem">
+    <div class="dash-card">
+      <div class="card-header">
+        <h2>Events</h2>
+        <form method="GET" action="/settings/activity" style="display:flex;gap:6px;margin:0">
+          <select name="area" onchange="this.form.submit()" style="font-size:12px;padding:4px 8px;border:1px solid #ddd;border-radius:6px">
+            <option value="">All areas</option>
+            <% areas.forEach(a => { %><option value="<%= a %>" <%= filters.area === a ? 'selected' : '' %>><%= a %></option><% }) %>
+          </select>
+          <select name="user" onchange="this.form.submit()" style="font-size:12px;padding:4px 8px;border:1px solid #ddd;border-radius:6px">
+            <option value="">All users</option>
+            <% users.forEach(u => { %><option value="<%= u.id %>" <%= filters.user === u.id ? 'selected' : '' %>><%= u.first_name %> <%= u.last_name %></option><% }) %>
+          </select>
+        </form>
+      </div>
+      <% if (logs.length === 0) { %>
+      <div class="empty-state"><i class="fas fa-clock-rotate-left"></i><p>No activity recorded yet.</p></div>
+      <% } else { %>
+      <table class="data-table">
+        <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Details</th><th>IP</th></tr></thead>
+        <tbody>
+        <% logs.forEach(l => { const ch = changes(l.old_values, l.new_values); %>
+        <tr>
+          <td style="white-space:nowrap"><%= new Date(l.created_at).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' }) %></td>
+          <td><%= l.first_name ? l.first_name + ' ' + l.last_name : (l.action.startsWith('auth.') ? 'Unknown' : 'System / customer') %></td>
+          <td><code style="font-size:12px"><%= l.action %></code></td>
+          <td style="font-size:12px;color:#555">
+            <% ch.forEach(c => { %>
+              <div><strong><%= c.key %></strong>:
+                <% if (c.from !== undefined) { %><span style="color:#dc3545;text-decoration:line-through"><%= fmt(c.from) %></span> → <% } %>
+                <span><%= fmt(c.to) %></span></div>
+            <% }) %>
+          </td>
+          <td style="font-size:11px;color:#888"><%= l.ip_address || '' %></td>
+        </tr>
+        <% }) %>
+        </tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;padding:12px 18px;font-size:13px">
+        <span><% if (filters.page > 1) { %><a href="/settings/activity?<%= qs({ page: filters.page - 1 }) %>">← Newer</a><% } %></span>
+        <span><% if (hasMore) { %><a href="/settings/activity?<%= qs({ page: filters.page + 1 }) %>">Older →</a><% } %></span>
+      </div>
+      <% } %>
+    </div>
+  </div>
+</main>
+<script src="/js/dashboard.js"></script>
+</body></html>
