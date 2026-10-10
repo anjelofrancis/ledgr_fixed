@@ -89,12 +89,20 @@ Ensure you have the following installed:
 6. **Access the App:**
    Open your browser and navigate to `http://localhost:3000` (or the port specified in your `.env` file).
 
+7. **Managing subscriptions (operators):**
+   New businesses start on a 14-day Pro trial and fall back to Free when it ends. After a customer pays, activate their plan:
+   ```bash
+   npm run set-plan -- shop@example.com pro 12   # Pro for 12 months
+   npm run set-plan -- shop@example.com cancel   # stop renewing; access continues to the paid-through date
+   ```
+
 ## 🗂️ Project Structure
 
 ```
 ├── .env.example         # Environment variables template
 ├── config/              # Configuration files
 ├── migrations/          # Database schema migrations and seed scripts
+├── scripts/             # Operator tools (e.g. set-plan)
 ├── src/                 # Application source code
 │   ├── app.js           # Express app initialization & middleware setup
 │   ├── controllers/     # Route logic for different modules (auth, expenses, etc.)
