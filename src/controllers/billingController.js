@@ -1,5 +1,6 @@
 const { query } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
+const { logAudit } = require('../utils/audit');
 
 // ============================================
 // M-PESA DARAJA HELPERS
@@ -89,13 +90,18 @@ const createSchedule = async (req, res) => {
   nextDue.setDate(parseInt(billingDay));
   if (nextDue < new Date()) nextDue.setMonth(nextDue.getMonth() + 1);
 
+  const scheduleId = uuidv4();
   await query(
     `INSERT INTO billing_schedules (id, business_id, name, category, amount, billing_day, payment_method, payee_number, account_ref, next_due_date)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-    [uuidv4(), req.user.business_id, name, category, parseFloat(amount),
+    [scheduleId, req.user.business_id, name, category, parseFloat(amount),
      parseInt(billingDay), paymentMethod || 'mpesa', payeeNumber || null,
      accountRef || null, nextDue.toISOString().split('T')[0]]
   );
+  await logAudit(req, {
+    action: 'billing.schedule_create', entityType: 'billing_schedule', entityId: scheduleId,
+    newValues: { name, category, amount: parseFloat(amount), billingDay, paymentMethod, payeeNumber, accountRef },
+  });
   res.redirect('/billing?success=1');
 };
 
@@ -115,6 +121,10 @@ const triggerPayment = async (req, res) => {
      VALUES ($1,$2,$3,$4,'processing')`,
     [txId, req.user.business_id, id, s.amount]
   );
+  await logAudit(req, {
+    action: 'billing.payment_trigger', entityType: 'billing_schedule', entityId: id,
+    newValues: { transactionId: txId, amount: s.amount, payee: s.payee_number },
+  });
 
   try {
     const result = await stkPush({
@@ -164,12 +174,19 @@ const mpesaCallback = async (req, res) => {
     ? cb.CallbackMetadata?.Item?.find(i => i.Name === 'MpesaReceiptNumber')?.Value
     : null;
 
-  await query(
+  const updated = await query(
     `UPDATE billing_transactions
      SET status = $1, mpesa_ref = $2, completed_at = NOW(), error_message = $3
-     WHERE mpesa_checkout_id = $4`,
+     WHERE mpesa_checkout_id = $4 RETURNING id, business_id, amount`,
     [success ? 'completed' : 'failed', mpesaRef, success ? null : cb.ResultDesc, checkoutId]
   );
+  for (const tx of updated.rows) {
+    await logAudit(req, {
+      action: success ? 'billing.payment_completed' : 'billing.payment_failed',
+      entityType: 'billing_transaction', entityId: tx.id, businessId: tx.business_id, userId: null,
+      newValues: { amount: tx.amount, mpesaRef, resultDesc: cb.ResultDesc, via: 'mpesa_callback' },
+    });
+  }
 
   res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
 };

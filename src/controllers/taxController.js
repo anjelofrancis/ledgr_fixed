@@ -1,5 +1,6 @@
 const { query } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
+const { logAudit } = require('../utils/audit');
 
 // Kenya tax helpers
 const computePAYE = (gross) => {
@@ -61,21 +62,32 @@ const listTax = async (req, res) => {
 
 const createTaxRecord = async (req, res) => {
   const { taxType, periodMonth, periodYear, grossAmount, taxAmount, dueDate } = req.body;
+  const taxId = uuidv4();
   await query(
     `INSERT INTO tax_records (id, business_id, tax_type, period_month, period_year, gross_amount, tax_amount, due_date)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [uuidv4(), req.user.business_id, taxType, parseInt(periodMonth),
+    [taxId, req.user.business_id, taxType, parseInt(periodMonth),
      parseInt(periodYear), parseFloat(grossAmount), parseFloat(taxAmount),
      dueDate || null]
   );
+  await logAudit(req, {
+    action: 'tax.create', entityType: 'tax_record', entityId: taxId,
+    newValues: { taxType, periodMonth, periodYear, grossAmount, taxAmount, dueDate },
+  });
   res.redirect('/tax?success=1');
 };
 
 const markPaid = async (req, res) => {
-  await query(
-    'UPDATE tax_records SET is_paid = true, paid_date = NOW()::DATE WHERE id = $1 AND business_id = $2',
+  const result = await query(
+    'UPDATE tax_records SET is_paid = true, paid_date = NOW()::DATE WHERE id = $1 AND business_id = $2 AND is_paid = false RETURNING tax_type, tax_amount',
     [req.params.id, req.user.business_id]
   );
+  if (result.rows.length) {
+    await logAudit(req, {
+      action: 'tax.mark_paid', entityType: 'tax_record', entityId: req.params.id,
+      oldValues: { is_paid: false }, newValues: { is_paid: true, ...result.rows[0] },
+    });
+  }
   res.redirect('/tax?paid=1');
 };
 

@@ -1,5 +1,6 @@
 const { query, getClient } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
+const { logAudit } = require('../utils/audit');
 const { computePAYE, computeNHIF, NSSF_RATE, MAX_NSSF } = require('./taxController');
 
 const listPayroll = async (req, res) => {
@@ -77,6 +78,10 @@ const createRun = async (req, res) => {
         [uuidv4(), runId, e.id, e.gross, e.paye, e.nhif, e.nssf, e.net]
       );
     }
+    await logAudit(req, {
+      action: 'payroll.create', entityType: 'payroll_run', entityId: runId, client,
+      newValues: { periodMonth, periodYear, employees: items.length, ...totals },
+    });
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
@@ -106,10 +111,17 @@ const showRun = async (req, res) => {
 };
 
 const approveRun = async (req, res) => {
-  await query(
-    `UPDATE payroll_runs SET status = 'approved', approved_by = $1, approved_at = NOW() WHERE id = $2 AND business_id = $3`,
+  const result = await query(
+    `UPDATE payroll_runs SET status = 'approved', approved_by = $1, approved_at = NOW()
+     WHERE id = $2 AND business_id = $3 AND status = 'draft' RETURNING total_net`,
     [req.user.id, req.params.id, req.user.business_id]
   );
+  if (result.rows.length) {
+    await logAudit(req, {
+      action: 'payroll.approve', entityType: 'payroll_run', entityId: req.params.id,
+      oldValues: { status: 'draft' }, newValues: { status: 'approved', total_net: result.rows[0].total_net },
+    });
+  }
   res.redirect(`/payroll/${req.params.id}?approved=1`);
 };
 

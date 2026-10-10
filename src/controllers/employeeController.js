@@ -1,6 +1,7 @@
 const { query } = require('../../config/database');
 const { validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
+const { logAudit } = require('../utils/audit');
 
 // GET /employees
 const listEmployees = async (req, res) => {
@@ -89,6 +90,7 @@ const createEmployee = async (req, res) => {
     bankName, bankAccount, startDate
   } = req.body;
 
+  const employeeId = uuidv4();
   await query(
     `INSERT INTO employees
      (id, business_id, department_id, first_name, last_name, employee_number, id_number,
@@ -96,13 +98,17 @@ const createEmployee = async (req, res) => {
       mpesa_number, bank_name, bank_account, start_date)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
     [
-      uuidv4(), req.user.business_id, departmentId || null,
+      employeeId, req.user.business_id, departmentId || null,
       firstName, lastName, employeeNumber || null, idNumber || null,
       phone || null, email || null, roleTitle || null, employmentType || 'full_time',
       parseFloat(salary), paymentMethod || 'mpesa',
       mpesaNumber || null, bankName || null, bankAccount || null, startDate
     ]
   );
+  await logAudit(req, {
+    action: 'employee.create', entityType: 'employee', entityId: employeeId,
+    newValues: { firstName, lastName, roleTitle, salary: parseFloat(salary), paymentMethod, startDate },
+  });
 
   res.redirect('/employees?success=created');
 };
@@ -152,13 +158,14 @@ const updateEmployee = async (req, res) => {
     bankName, bankAccount, startDate, isActive
   } = req.body;
 
-  await query(
+  const before = await query('SELECT * FROM employees WHERE id = $1 AND business_id = $2', [req.params.id, req.user.business_id]);
+  const after = await query(
     `UPDATE employees SET
       first_name=$1, last_name=$2, employee_number=$3, id_number=$4,
       phone=$5, email=$6, role_title=$7, department_id=$8, employment_type=$9,
       salary=$10, payment_method=$11, mpesa_number=$12, bank_name=$13,
       bank_account=$14, start_date=$15, is_active=$16
-     WHERE id=$17 AND business_id=$18`,
+     WHERE id=$17 AND business_id=$18 RETURNING *`,
     [
       firstName, lastName, employeeNumber || null, idNumber || null,
       phone || null, email || null, roleTitle || null, departmentId || null,
@@ -167,16 +174,28 @@ const updateEmployee = async (req, res) => {
       startDate, isActive === 'on', req.params.id, req.user.business_id
     ]
   );
+  if (after.rows.length) {
+    await logAudit(req, {
+      action: 'employee.update', entityType: 'employee', entityId: req.params.id,
+      oldValues: before.rows[0], newValues: after.rows[0],
+    });
+  }
 
   res.redirect(`/employees/${req.params.id}?success=updated`);
 };
 
 // POST /employees/:id/deactivate
 const deactivateEmployee = async (req, res) => {
-  await query(
-    'UPDATE employees SET is_active = false, end_date = NOW()::DATE WHERE id = $1 AND business_id = $2',
+  const result = await query(
+    'UPDATE employees SET is_active = false, end_date = NOW()::DATE WHERE id = $1 AND business_id = $2 RETURNING id',
     [req.params.id, req.user.business_id]
   );
+  if (result.rows.length) {
+    await logAudit(req, {
+      action: 'employee.deactivate', entityType: 'employee', entityId: req.params.id,
+      oldValues: { is_active: true }, newValues: { is_active: false },
+    });
+  }
   res.redirect('/employees?success=deactivated');
 };
 

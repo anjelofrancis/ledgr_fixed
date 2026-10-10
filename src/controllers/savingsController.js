@@ -1,5 +1,6 @@
 const { query } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
+const { logAudit } = require('../utils/audit');
 
 const listSavings = async (req, res) => {
   const businessId = req.user.business_id;
@@ -53,23 +54,35 @@ const computeAllocation = async (req, res) => {
   const amount = netIncome * (rate / 100);
 
   // Upsert
-  await query(
+  const created = await query(
     `INSERT INTO savings_allocations (id, business_id, period_month, period_year, net_income, savings_rate, amount)
      VALUES ($1,$2,$3,$4,$5,$6,$7)
-     ON CONFLICT DO NOTHING`,
+     ON CONFLICT DO NOTHING RETURNING id`,
     [uuidv4(), businessId, m, y, netIncome, rate, amount]
   );
+  if (created.rows.length) {
+    await logAudit(req, {
+      action: 'savings.compute', entityType: 'savings_allocation', entityId: created.rows[0].id,
+      newValues: { periodMonth: m, periodYear: y, netIncome, rate, amount },
+    });
+  }
 
   res.redirect('/savings?computed=1');
 };
 
 const markTransferred = async (req, res) => {
   const { accountReference } = req.body;
-  await query(
+  const result = await query(
     `UPDATE savings_allocations SET status = 'transferred', transferred_at = NOW(), account_reference = $1
-     WHERE id = $2 AND business_id = $3`,
+     WHERE id = $2 AND business_id = $3 RETURNING amount`,
     [accountReference || null, req.params.id, req.user.business_id]
   );
+  if (result.rows.length) {
+    await logAudit(req, {
+      action: 'savings.transfer', entityType: 'savings_allocation', entityId: req.params.id,
+      newValues: { status: 'transferred', amount: result.rows[0].amount, accountReference: accountReference || null },
+    });
+  }
   res.redirect('/savings?transferred=1');
 };
 
