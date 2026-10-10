@@ -1,0 +1,82 @@
+<%- include('../../partials/head') %>
+<link rel="stylesheet" href="/css/dashboard.css">
+<link rel="stylesheet" href="/css/auth.css">
+</head>
+<body class="app-body">
+<%- include('../../partials/sidebar') %>
+<%
+  const errors = {
+    invalid_role: 'Choose a valid role.',
+    self_demote: 'You cannot remove your own admin role.',
+    save_failed: 'Could not save changes. Please try again.',
+  };
+%>
+<main class="main-content">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div><h1 class="page-title">Access for <%= member.first_name %> <%= member.last_name %></h1>
+      <p class="page-sub"><%= member.email %></p></div>
+    </div>
+    <a href="/settings" class="btn-add" style="background:#fff;color:#0d0d0d;border:1px solid #ddd"><i class="fas fa-arrow-left"></i> Settings</a>
+  </div>
+
+  <% if (success) { %>
+  <div style="margin:1rem 2rem;padding:12px 16px;background:#e0f7ef;border-radius:8px;color:#0d5c3d;font-size:13px">
+    <i class="fas fa-check-circle"></i> Access updated.
+  </div>
+  <% } %>
+  <% if (error) { %>
+  <div style="margin:1rem 2rem;padding:12px 16px;background:#fce8e9;border-radius:8px;color:#9c1c1c;font-size:13px">
+    <i class="fas fa-circle-exclamation"></i> <%= errors[error] || 'Something went wrong.' %>
+  </div>
+  <% } %>
+
+  <form action="/settings/users/<%= member.id %>/access" method="POST" style="padding:0 2rem 2rem">
+    <div class="dash-card" style="padding:1.5rem;margin-bottom:16px">
+      <h2 style="font-size:15px;font-weight:600;margin-bottom:1rem">Role</h2>
+      <div class="auth-form">
+        <div class="form-group">
+          <select name="role" id="roleSelect">
+            <% Object.entries(roles).forEach(([key, r]) => { %>
+            <option value="<%= key %>" <%= member.role === key ? 'selected' : '' %>><%= r.label %></option>
+            <% }) %>
+          </select>
+        </div>
+      </div>
+      <p style="font-size:12px;color:#888">Ticked boxes greyed out below come with the role. Tick any others to grant them on top of it.</p>
+    </div>
+
+    <div class="dash-card" style="padding:1.5rem">
+      <h2 style="font-size:15px;font-weight:600;margin-bottom:1rem">Permissions</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px 24px">
+        <% Object.entries(permissions).forEach(([key, label]) => { %>
+        <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer">
+          <input type="checkbox" name="permissions" value="<%= key %>" data-perm="<%= key %>" <%= grants.includes(key) ? 'checked' : '' %>>
+          <span><%= label %><br><code style="font-size:11px;color:#999"><%= key %></code></span>
+        </label>
+        <% }) %>
+      </div>
+      <button type="submit" class="btn-submit" style="margin-top:1.5rem;max-width:240px">Save access</button>
+    </div>
+  </form>
+</main>
+<script>
+  // Show which permissions the selected role already includes
+  const rolePerms = <%- JSON.stringify(Object.fromEntries(Object.entries(roles).map(([k, r]) => [k, r.permissions]))) %>;
+  const grants = <%- JSON.stringify(grants) %>;
+  const roleSelect = document.getElementById('roleSelect');
+  function syncRole() {
+    const inRole = new Set(rolePerms[roleSelect.value] || []);
+    document.querySelectorAll('[data-perm]').forEach(box => {
+      const fromRole = inRole.has(box.dataset.perm);
+      box.disabled = fromRole;
+      box.checked = fromRole || grants.includes(box.dataset.perm);
+      box.closest('label').style.opacity = fromRole ? 0.55 : 1;
+    });
+  }
+  roleSelect.addEventListener('change', syncRole);
+  syncRole();
+</script>
+<script src="/js/dashboard.js"></script>
+</body></html>

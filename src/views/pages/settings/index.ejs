@@ -74,12 +74,14 @@
           <% users.forEach(u => { %>
           <tr>
             <td style="font-size:13px"><%= u.first_name %> <%= u.last_name %><br><span style="color:#999;font-size:11px"><%= u.email %></span></td>
-            <td><span class="badge badge-<%= u.role %>"><%= u.role %></span></td>
+            <td><span class="badge badge-<%= u.role %>"><%= roles[u.role] ? roles[u.role].label : u.role %></span></td>
             <td><span style="font-size:11px;color:<%= u.is_active?'#00b87f':'#dc3545' %>"><%= u.is_active?'Active':'Inactive' %></span></td>
-            <td><% if(u.id !== user.id){ %>
-              <form action="/settings/users/<%=u.id%>/toggle" method="POST" style="margin:0">
+            <td><% if(can('users.manage')){ %>
+              <a href="/settings/users/<%=u.id%>/access" style="font-size:11px;color:#1967d2;margin-right:8px">Access</a>
+              <% if(u.id !== user.id){ %>
+              <form action="/settings/users/<%=u.id%>/toggle" method="POST" style="margin:0;display:inline">
                 <button type="submit" style="background:none;border:none;font-size:11px;color:#888;cursor:pointer"><%= u.is_active?'Deactivate':'Activate' %></button>
-              </form><% } %></td>
+              </form><% } %><% } %></td>
           </tr>
           <% }) %>
           </tbody>
@@ -97,9 +99,9 @@
           <div class="form-group"><label>Email</label><input type="email" name="email" required></div>
           <div class="form-group"><label>Role</label>
             <select name="role">
-              <option value="user">User (view only)</option>
-              <option value="accountant">Accountant</option>
-              <option value="manager">Manager</option>
+              <% Object.entries(roles).forEach(([key, r]) => { %>
+              <option value="<%= key %>" <%= key === 'user' ? 'selected' : '' %>><%= r.label %></option>
+              <% }) %>
             </select>
           </div>
           <button type="submit" class="btn-submit">Send invite</button>

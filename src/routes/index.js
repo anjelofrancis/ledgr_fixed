@@ -186,6 +186,8 @@ router.get('/settings', can('settings.view'), settingsController.showSettings);
 router.post('/settings/business', can('settings.business'), settingsController.updateBusiness);
 router.post('/settings/invite', can('users.manage'), settingsController.inviteUser);
 router.post('/settings/users/:id/toggle', can('users.manage'), settingsController.toggleUser);
+router.get('/settings/users/:id/access', can('users.manage'), settingsController.showAccess);
+router.post('/settings/users/:id/access', can('users.manage'), settingsController.updateAccess);
 router.post('/settings/password', settingsController.updatePassword);
 router.get('/settings/activity', can('activity.view'), activityController.listActivity);
 
