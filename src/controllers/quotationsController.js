@@ -117,16 +117,34 @@ const saveQuotationAPI = async (req, res) => {
   try {
     await client.query('BEGIN');
 
+    // Linked inventory items must belong to this business
+    const linkedIds = [...new Set(items.map(i => i.itemId).filter(Boolean))];
+    if (linkedIds.length) {
+      const owned = await client.query(
+        'SELECT id FROM inventory_items WHERE business_id = $1 AND id = ANY($2::uuid[])',
+        [businessId, linkedIds]
+      );
+      if (owned.rowCount !== linkedIds.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'One or more items were not found in your inventory' });
+      }
+    }
+
     let quotationId = id;
     if (id) {
       // Update existing
-      await client.query(
+      const updated = await client.query(
         `UPDATE quotations SET 
           customer_id = $1, customer_name = $2, customer_email = $3, 
           total_amount = $4, valid_until = $5, notes = $6, updated_at = NOW()
          WHERE id = $7 AND business_id = $8 AND status IN ('draft', 'sent')`,
         [customerId || null, customerName, customerEmail, totalAmount, validUntil || null, notes, id, businessId]
       );
+      // Not ours, or already accepted/converted: leave its items untouched
+      if (updated.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Quotation not found or can no longer be edited' });
+      }
       // Replace items
       await client.query(`DELETE FROM quotation_items WHERE quotation_id = $1`, [id]);
     } else {
@@ -233,7 +251,7 @@ const convertToSaleAPI = async (req, res) => {
 
       // If linked to inventory, deduct stock
       if (item.item_id) {
-        const invResult = await client.query('SELECT quantity FROM inventory_items WHERE id = $1 FOR UPDATE', [item.item_id]);
+        const invResult = await client.query('SELECT quantity FROM inventory_items WHERE id = $1 AND business_id = $2 FOR UPDATE', [item.item_id, businessId]);
         if (invResult.rowCount > 0) {
           const currentQty = invResult.rows[0].quantity;
           const newQty = currentQty - item.quantity;

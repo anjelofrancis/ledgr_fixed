@@ -55,6 +55,10 @@ router.post('/billing/callback', billingController.mpesaCallback);
 // ── Chatbot (Gemini) — public so it works on landing page ────────────────────
 router.post('/api/chat', chatController.handleChat);
 
+// Public quotation links (customers open these without an account)
+router.get('/q/:token', optionalAuth, quotationsController.publicQuoteView);
+router.post('/q/:token/action', quotationsController.publicQuoteAction);
+
 // ── PROTECTED ────────────────────────────────────────────────────────────────
 router.use(authenticate);
 
@@ -134,10 +138,6 @@ router.get('/quotations/:id', quotationsController.viewQuotation);
 router.post('/api/quotations', authorize('admin','manager'), quotationsController.saveQuotationAPI);
 router.post('/api/quotations/:id/status', authorize('admin','manager'), quotationsController.updateStatusAPI);
 router.post('/api/quotations/:id/convert', authorize('admin','manager'), quotationsController.convertToSaleAPI);
-
-// Public links
-router.get('/q/:token', optionalAuth, quotationsController.publicQuoteView);
-router.post('/q/:token/action', quotationsController.publicQuoteAction);
 
 // ── PART 2: Billing ──────────────────────────────────────────────────────────
 router.get('/billing', billingController.listBilling);
