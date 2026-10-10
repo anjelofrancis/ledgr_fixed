@@ -75,6 +75,10 @@ Ensure you have the following installed:
    ```bash
    npm run seed
    ```
+   *After seeding, or when upgrading an existing database:* post income and expenses that were recorded outside the app (seed data, or before the general ledger existed) to the ledger. Safe to re-run:
+   ```bash
+   npm run ledger:backfill
+   ```
 
 5. **Start the Application:**
    * For development (with auto-reload via nodemon):
