@@ -76,10 +76,16 @@ const searchItemsAPI = async (req, res) => {
 const checkoutAPI = async (req, res) => {
   const businessId = req.user.business_id;
   const userId = req.user.id;
-  const { cart, paymentMethod, customerName, customerPhone, totalAmount } = req.body;
+  const { cart, paymentMethod, customerName, customerPhone } = req.body;
 
   if (!cart || !Array.isArray(cart) || cart.length === 0) {
     return res.status(400).json({ error: 'Cart is empty' });
+  }
+  if (cart.some(i => !Number.isInteger(Number(i.cartQuantity)) || Number(i.cartQuantity) < 1)) {
+    return res.status(400).json({ error: 'Each item needs a quantity of at least 1' });
+  }
+  if (!['cash', 'mpesa', 'card'].includes(paymentMethod)) {
+    return res.status(400).json({ error: 'Invalid payment method' });
   }
 
   try {
@@ -103,36 +109,45 @@ const checkoutAPI = async (req, res) => {
         }
       }
 
-      // 2. Create the Sale record
+      // 2. Create the Sale record (total is filled in once prices are read from inventory)
       const saleId = uuidv4();
       const receiptNumber = 'REC-' + Math.random().toString(36).substr(2, 6).toUpperCase();
       
       await client.query(
         `INSERT INTO sales (id, business_id, customer_id, recorded_by, receipt_number, total_amount, payment_method, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed')`,
-        [saleId, businessId, customerId, userId, receiptNumber, totalAmount, paymentMethod]
+         VALUES ($1, $2, $3, $4, $5, 0, $6, 'completed')`,
+        [saleId, businessId, customerId, userId, receiptNumber, paymentMethod]
       );
 
-      // 3. Process each item
+      // 3. Process each item — prices always come from inventory, never from the browser
+      let totalAmount = 0;
+      const soldItems = [];
       for (const item of cart) {
-        // Verify inventory
-        const invResult = await client.query('SELECT quantity FROM inventory_items WHERE id = $1 AND business_id = $2 FOR UPDATE', [item.id, businessId]);
+        const qty = Number(item.cartQuantity);
+        const invResult = await client.query(
+          'SELECT name, quantity, sell_price FROM inventory_items WHERE id = $1 AND business_id = $2 AND is_active = true FOR UPDATE',
+          [item.id, businessId]
+        );
         if (invResult.rowCount === 0) {
           throw new Error(`Item ${item.name} not found`);
         }
         
-        const currentQty = invResult.rows[0].quantity;
-        if (currentQty < item.cartQuantity) {
-          throw new Error(`Insufficient stock for ${item.name}. Available: ${currentQty}`);
+        const { name, quantity: currentQty, sell_price } = invResult.rows[0];
+        const unitPrice = Number(sell_price);
+        if (currentQty < qty) {
+          throw new Error(`Insufficient stock for ${name}. Available: ${currentQty}`);
         }
 
-        const newQty = currentQty - item.cartQuantity;
+        const newQty = currentQty - qty;
+        const subtotal = Math.round(unitPrice * qty * 100) / 100;
+        totalAmount += subtotal;
+        soldItems.push({ id: item.id, name, quantity: qty, price: unitPrice });
 
         // Insert sale_item
         await client.query(
           `INSERT INTO sale_items (id, sale_id, item_id, quantity, unit_price, subtotal)
            VALUES ($1, $2, $3, $4, $5, $6)`,
-          [uuidv4(), saleId, item.id, item.cartQuantity, item.sell_price, item.cartQuantity * item.sell_price]
+          [uuidv4(), saleId, item.id, qty, unitPrice, subtotal]
         );
 
         // Update inventory quantity
@@ -145,9 +160,12 @@ const checkoutAPI = async (req, res) => {
         await client.query(
           `INSERT INTO inventory_transactions (id, business_id, item_id, recorded_by, type, quantity_change, quantity_after, reference, notes)
            VALUES ($1, $2, $3, $4, 'sale', $5, $6, $7, 'POS Sale')`,
-          [uuidv4(), businessId, item.id, userId, -item.cartQuantity, newQty, receiptNumber]
+          [uuidv4(), businessId, item.id, userId, -qty, newQty, receiptNumber]
         );
       }
+
+      totalAmount = Math.round(totalAmount * 100) / 100;
+      await client.query('UPDATE sales SET total_amount = $1 WHERE id = $2', [totalAmount, saleId]);
 
       // 4. Record to income ledger
       await client.query(
@@ -160,11 +178,11 @@ const checkoutAPI = async (req, res) => {
         action: 'sale.create', entityType: 'sale', entityId: saleId, client,
         newValues: {
           receiptNumber, totalAmount, paymentMethod, customerId,
-          items: cart.map(i => ({ id: i.id, name: i.name, quantity: i.cartQuantity, price: i.sell_price })),
+          items: soldItems,
         },
       });
       await client.query('COMMIT');
-      res.json({ success: true, saleId, receiptNumber });
+      res.json({ success: true, saleId, receiptNumber, totalAmount });
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
