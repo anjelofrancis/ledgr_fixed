@@ -98,10 +98,11 @@ const showRun = async (req, res) => {
     query(
       `SELECT pi.*, e.first_name, e.last_name, e.mpesa_number, e.payment_method, d.name AS dept
        FROM payroll_items pi
+       JOIN payroll_runs pr ON pr.id = pi.payroll_run_id AND pr.business_id = $2
        JOIN employees e ON e.id = pi.employee_id
        LEFT JOIN departments d ON d.id = e.department_id
        WHERE pi.payroll_run_id = $1 ORDER BY d.name, e.first_name`,
-      [req.params.id]
+      [req.params.id, req.user.business_id]
     ),
   ]);
   if (!run.rows.length) return res.redirect('/payroll');
