@@ -1,7 +1,8 @@
-const { query } = require('../../config/database');
+const { query, withTransaction } = require('../../config/database');
 const { validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const { logAudit } = require('../utils/audit');
+const { postIncome, reverseSource } = require('../utils/ledger');
 
 // GET /income
 const listIncome = async (req, res) => {
@@ -83,13 +84,16 @@ const createIncome = async (req, res) => {
   }
   const { date, amount, source, description, paymentMode, mpesaRef } = req.body;
   try {
-    const created = await query(
-      `INSERT INTO income_records (id, business_id, recorded_by, date, amount, source, description, payment_mode, mpesa_ref)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [uuidv4(), req.user.business_id, req.user.id, date, parseFloat(amount),
-       source || 'daily_sales', description || null, paymentMode || 'cash', mpesaRef || null]
-    );
-    await logAudit(req, { action: 'income.create', entityType: 'income_record', entityId: created.rows[0].id, newValues: created.rows[0] });
+    await withTransaction(async (client) => {
+      const created = await client.query(
+        `INSERT INTO income_records (id, business_id, recorded_by, date, amount, source, description, payment_mode, mpesa_ref)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [uuidv4(), req.user.business_id, req.user.id, date, parseFloat(amount),
+         source || 'daily_sales', description || null, paymentMode || 'cash', mpesaRef || null]
+      );
+      await postIncome(client, created.rows[0], req.user.id);
+      await logAudit(req, { action: 'income.create', entityType: 'income_record', entityId: created.rows[0].id, newValues: created.rows[0], client });
+    });
     res.redirect('/income?success=1');
   } catch (err) {
     console.error('Income create error:', err);
@@ -101,17 +105,25 @@ const createIncome = async (req, res) => {
 const voidIncome = async (req, res) => {
   const reason = (req.body.reason || '').trim().slice(0, 500) || 'No reason given';
   try {
-    const result = await query(
-      `UPDATE income_records SET voided_at = NOW(), voided_by = $1, void_reason = $2
-       WHERE id = $3 AND business_id = $4 AND voided_at IS NULL RETURNING *`,
-      [req.user.id, reason, req.params.id, req.user.business_id]
-    );
-    if (!result.rows.length) return res.redirect('/income?error=not_found');
-    await logAudit(req, {
-      action: 'income.void', entityType: 'income_record', entityId: req.params.id,
-      oldValues: { ...result.rows[0], voided_at: null, voided_by: null, void_reason: null },
-      newValues: { voided_at: result.rows[0].voided_at, void_reason: reason },
+    const voided = await withTransaction(async (client) => {
+      const result = await client.query(
+        `UPDATE income_records SET voided_at = NOW(), voided_by = $1, void_reason = $2
+         WHERE id = $3 AND business_id = $4 AND voided_at IS NULL RETURNING *`,
+        [req.user.id, reason, req.params.id, req.user.business_id]
+      );
+      if (!result.rows.length) return false;
+      await reverseSource(client, {
+        businessId: req.user.business_id, sourceType: 'income_record', sourceId: req.params.id,
+        date: new Date(), reason, userId: req.user.id,
+      });
+      await logAudit(req, {
+        action: 'income.void', entityType: 'income_record', entityId: req.params.id, client,
+        oldValues: { ...result.rows[0], voided_at: null, voided_by: null, void_reason: null },
+        newValues: { voided_at: result.rows[0].voided_at, void_reason: reason },
+      });
+      return true;
     });
+    if (!voided) return res.redirect('/income?error=not_found');
     res.redirect('/income?voided=1');
   } catch (err) {
     console.error('Income void error:', err);

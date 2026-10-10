@@ -1,7 +1,8 @@
-const { query } = require('../../config/database');
+const { query, withTransaction } = require('../../config/database');
 const { validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const { logAudit } = require('../utils/audit');
+const { postExpense, reverseSource } = require('../utils/ledger');
 
 const listExpenses = async (req, res) => {
   const { month, year, type } = req.query;
@@ -74,14 +75,21 @@ const createExpense = async (req, res) => {
     });
   }
   const { date, amount, description, categoryId, vendor, paymentMethod, isPaid } = req.body;
-  const created = await query(
-    `INSERT INTO expenses (id, business_id, category_id, recorded_by, date, amount, description, vendor, payment_method, is_paid)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-    [uuidv4(), req.user.business_id, categoryId || null, req.user.id,
-     date, parseFloat(amount), description, vendor || null,
-     paymentMethod || 'cash', isPaid === 'on']
-  );
-  await logAudit(req, { action: 'expense.create', entityType: 'expense', entityId: created.rows[0].id, newValues: created.rows[0] });
+  await withTransaction(async (client) => {
+    // Category must belong to this business; its type picks the ledger expense account
+    const category = categoryId
+      ? (await client.query('SELECT id, type FROM expense_categories WHERE id = $1 AND business_id = $2', [categoryId, req.user.business_id])).rows[0]
+      : null;
+    const created = await client.query(
+      `INSERT INTO expenses (id, business_id, category_id, recorded_by, date, amount, description, vendor, payment_method, is_paid)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [uuidv4(), req.user.business_id, category?.id || null, req.user.id,
+       date, parseFloat(amount), description, vendor || null,
+       paymentMethod || 'cash', isPaid === 'on']
+    );
+    await postExpense(client, created.rows[0], category?.type, req.user.id);
+    await logAudit(req, { action: 'expense.create', entityType: 'expense', entityId: created.rows[0].id, newValues: created.rows[0], client });
+  });
   res.redirect('/expenses?success=1');
 };
 
@@ -89,17 +97,25 @@ const createExpense = async (req, res) => {
 const voidExpense = async (req, res) => {
   const reason = (req.body.reason || '').trim().slice(0, 500) || 'No reason given';
   try {
-    const result = await query(
-      `UPDATE expenses SET voided_at = NOW(), voided_by = $1, void_reason = $2
-       WHERE id = $3 AND business_id = $4 AND voided_at IS NULL RETURNING *`,
-      [req.user.id, reason, req.params.id, req.user.business_id]
-    );
-    if (!result.rows.length) return res.redirect('/expenses?error=not_found');
-    await logAudit(req, {
-      action: 'expense.void', entityType: 'expense', entityId: req.params.id,
-      oldValues: { ...result.rows[0], voided_at: null, voided_by: null, void_reason: null },
-      newValues: { voided_at: result.rows[0].voided_at, void_reason: reason },
+    const voided = await withTransaction(async (client) => {
+      const result = await client.query(
+        `UPDATE expenses SET voided_at = NOW(), voided_by = $1, void_reason = $2
+         WHERE id = $3 AND business_id = $4 AND voided_at IS NULL RETURNING *`,
+        [req.user.id, reason, req.params.id, req.user.business_id]
+      );
+      if (!result.rows.length) return false;
+      await reverseSource(client, {
+        businessId: req.user.business_id, sourceType: 'expense', sourceId: req.params.id,
+        date: new Date(), reason, userId: req.user.id,
+      });
+      await logAudit(req, {
+        action: 'expense.void', entityType: 'expense', entityId: req.params.id, client,
+        oldValues: { ...result.rows[0], voided_at: null, voided_by: null, void_reason: null },
+        newValues: { voided_at: result.rows[0].voided_at, void_reason: reason },
+      });
+      return true;
     });
+    if (!voided) return res.redirect('/expenses?error=not_found');
     res.redirect('/expenses?voided=1');
   } catch (err) {
     console.error('Expense void error:', err);

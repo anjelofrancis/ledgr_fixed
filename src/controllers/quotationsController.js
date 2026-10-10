@@ -1,6 +1,7 @@
 const { query, getClient } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { logAudit } = require('../utils/audit');
+const { postIncome } = require('../utils/ledger');
 
 // ── INTERNAL DASHBOARD VIEWS ─────────────────────────────────────────────────
 
@@ -265,12 +266,13 @@ const convertToSaleAPI = async (req, res) => {
       }
     }
 
-    // 4. Update Income
-    await client.query(
+    // 4. Record income and post it to the ledger
+    const income = await client.query(
       `INSERT INTO income_records (id, business_id, recorded_by, date, amount, source, description, payment_mode, is_verified)
-       VALUES ($1, $2, $3, CURRENT_DATE, $4, 'invoice', $5, 'bank_transfer', true)`,
+       VALUES ($1, $2, $3, CURRENT_DATE, $4, 'invoice', $5, 'bank_transfer', true) RETURNING *`,
       [uuidv4(), businessId, userId, quote.total_amount, `Converted Quote ${quote.quote_number}`]
     );
+    await postIncome(client, income.rows[0], userId);
 
     // 5. Update quote status
     await client.query(`UPDATE quotations SET status = 'converted', updated_at = NOW() WHERE id = $1`, [quotationId]);

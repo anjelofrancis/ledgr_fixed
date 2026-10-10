@@ -2,6 +2,7 @@ const { query, getClient } = require('../../config/database');
 const { validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const { logAudit } = require('../utils/audit');
+const { postIncome } = require('../utils/ledger');
 
 // Render the historical sales page
 const listSales = async (req, res) => {
@@ -167,12 +168,13 @@ const checkoutAPI = async (req, res) => {
       totalAmount = Math.round(totalAmount * 100) / 100;
       await client.query('UPDATE sales SET total_amount = $1 WHERE id = $2', [totalAmount, saleId]);
 
-      // 4. Record to income ledger
-      await client.query(
+      // 4. Record income and post it to the ledger
+      const income = await client.query(
         `INSERT INTO income_records (id, business_id, recorded_by, date, amount, source, description, payment_mode, receipt_url, is_verified)
-         VALUES ($1, $2, $3, CURRENT_DATE, $4, 'daily_sales', $5, $6, $7, true)`,
+         VALUES ($1, $2, $3, CURRENT_DATE, $4, 'daily_sales', $5, $6, $7, true) RETURNING *`,
         [uuidv4(), businessId, userId, totalAmount, `POS Sale - ${receiptNumber}`, paymentMethod, `/sales/${saleId}/receipt`]
       );
+      await postIncome(client, income.rows[0], userId);
 
       await logAudit(req, {
         action: 'sale.create', entityType: 'sale', entityId: saleId, client,
