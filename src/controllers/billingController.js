@@ -1,57 +1,7 @@
 const { query } = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
+const { payBill } = require('../utils/billPayments');
 const { logAudit } = require('../utils/audit');
-
-// ============================================
-// M-PESA DARAJA HELPERS
-// ============================================
-
-const getAccessToken = async () => {
-  const auth = Buffer.from(
-    `${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`
-  ).toString('base64');
-
-  const url = process.env.MPESA_ENVIRONMENT === 'production'
-    ? 'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
-    : 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
-
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: { Authorization: `Basic ${auth}` },
-  });
-  const data = await res.json();
-  return data.access_token;
-};
-
-const stkPush = async ({ phone, amount, accountRef, description }) => {
-  const token = await getAccessToken();
-  const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
-  const shortcode = process.env.MPESA_BUSINESS_SHORTCODE;
-  const password = Buffer.from(`${shortcode}${process.env.MPESA_PASSKEY}${timestamp}`).toString('base64');
-
-  const url = process.env.MPESA_ENVIRONMENT === 'production'
-    ? 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
-    : 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      BusinessShortCode: shortcode,
-      Password: password,
-      Timestamp: timestamp,
-      TransactionType: 'CustomerPayBillOnline',
-      Amount: Math.round(amount),
-      PartyA: phone.replace(/^0/, '254'),
-      PartyB: shortcode,
-      PhoneNumber: phone.replace(/^0/, '254'),
-      CallBackURL: `${process.env.MPESA_CALLBACK_URL}/billing/callback`,
-      AccountReference: accountRef,
-      TransactionDesc: description,
-    }),
-  });
-  return res.json();
-};
 
 // ============================================
 // BILLING CONTROLLERS
@@ -115,57 +65,13 @@ const triggerPayment = async (req, res) => {
   if (!schedule.rows.length) return res.redirect('/billing');
 
   const s = schedule.rows[0];
-
-  // One live payment per due date: take over a queued one, or refuse if it's already in flight or paid
-  const inserted = await query(
-    `INSERT INTO billing_transactions (id, business_id, schedule_id, amount, status, due_date)
-     VALUES ($1,$2,$3,$4,'processing',$5) ON CONFLICT DO NOTHING RETURNING id`,
-    [uuidv4(), req.user.business_id, id, s.amount, s.next_due_date]
-  );
-  const claimed = inserted.rows.length ? inserted : await query(
-    `UPDATE billing_transactions SET status = 'processing', initiated_at = NOW()
-     WHERE schedule_id = $1 AND due_date = $2 AND status = 'pending' RETURNING id`,
-    [id, s.next_due_date]
-  );
-  if (!claimed.rows.length) return res.redirect('/billing?inprogress=1');
-  const txId = claimed.rows[0].id;
+  const result = await payBill(s);
+  if (result.status === 'busy') return res.redirect('/billing?inprogress=1');
 
   await logAudit(req, {
     action: 'billing.payment_trigger', entityType: 'billing_schedule', entityId: id,
-    newValues: { transactionId: txId, amount: s.amount, payee: s.payee_number },
+    newValues: { transactionId: result.transactionId, amount: s.amount, payee: s.payee_number, result: result.status, error: result.error },
   });
-
-  try {
-    const result = await stkPush({
-      phone: s.payee_number,
-      amount: s.amount,
-      accountRef: s.account_ref || s.name,
-      description: `LEDGR: ${s.name}`,
-    });
-
-    await query(
-      `UPDATE billing_transactions SET mpesa_checkout_id = $1, status = $2 WHERE id = $3`,
-      [result.CheckoutRequestID || null,
-       result.ResponseCode === '0' ? 'processing' : 'failed',
-       txId]
-    );
-
-    if (result.ResponseCode === '0') {
-      // Update next due date
-      const next = new Date();
-      next.setMonth(next.getMonth() + 1);
-      next.setDate(s.billing_day);
-      await query(
-        'UPDATE billing_schedules SET last_paid_at = NOW(), next_due_date = $1 WHERE id = $2',
-        [next.toISOString().split('T')[0], id]
-      );
-    }
-  } catch (err) {
-    await query(
-      `UPDATE billing_transactions SET status = 'failed', error_message = $1 WHERE id = $2`,
-      [err.message, txId]
-    );
-  }
 
   res.redirect('/billing?triggered=1');
 };
